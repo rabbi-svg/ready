@@ -1117,7 +1117,13 @@ function sync(loud) {
     .then(function (text) {
       var res;
       try { res = JSON.parse(text); }
-      catch (e) { throw new Error('Server sent something that was not JSON: ' + text.slice(0, 120)); }
+      catch (e) {
+        if (text.trim().charAt(0) === '<') {
+          throw new Error('Got a web page instead of data. Check Setup is pointing ' +
+            'at your relay address, not the Google script address.');
+        }
+        throw new Error('Server sent something that was not data: ' + text.slice(0, 80));
+      }
       if (!res.ok) throw new Error(res.error || 'Server refused the request');
 
       var settled = {};
@@ -1183,7 +1189,13 @@ function postDirect(extra) {
     .then(function (text) {
       var res;
       try { res = JSON.parse(text); }
-      catch (e) { throw new Error('Server sent something that was not JSON'); }
+      catch (e) {
+        if (text.trim().charAt(0) === '<') {
+          throw new Error('Got a web page instead of data. Check Setup is pointing ' +
+            'at your relay address, not the Google script address.');
+        }
+        throw new Error('Server sent something that was not data');
+      }
       if (!res.ok) throw new Error(res.error || 'Server refused the request');
       return res;
     });
@@ -1579,7 +1591,11 @@ function card(d, opts) {
   var t = d.task;
   var bits = [];
 
-  if (d.deadline) bits.push('<time>due ' + esc(niceDate(d.deadline)) + '</time>');
+  var sentence = riskSentence(d);
+  // Only show the date here when the line above is not already saying it.
+  if (d.deadline && !sentence) {
+    bits.push('<time>due ' + esc(niceDate(d.deadline)) + '</time>');
+  }
   if (t.estimate_min) bits.push('<span>' + esc(niceMins(t.estimate_min)) + '</span>');
   if (d.deadlineFrom) {
     bits.push('<span>needed for ' + esc(d.deadlineFrom.title) + '</span>');
@@ -1601,8 +1617,6 @@ function card(d, opts) {
       .slice(0, 2).join(', ')) +
       (d.needs.length > 2 ? ' and ' + plural(d.needs.length - 2, 'other') : '') + '</p>';
   }
-
-  var sentence = riskSentence(d);
 
   return '' +
     '<article class="card' +
