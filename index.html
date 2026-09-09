@@ -13,290 +13,202 @@
 <meta name="mobile-web-app-capable" content="yes">
 <style>
 :root {
-  --paper:   #E9EDEF;
+ --paper: #F6FAFC;
   --surface: #FFFFFF;
-  --ink:     #16212B;
-  --muted:   #5E717F;
-  --faint:   #8B9AA5;
-  --rule:    #CBD5DB;
-  --sunk:    #DDE3E7;
-
-  --amber:   #B26A00;
-  --rust:    #B33A2B;
+  --surface-subtle: #F0F4F6;
+  --ink: #16212B;
+  --muted: #5E717F;
+  --faint: #8B9AA5;
+  --rule: #CBD5DB;
+  --sunk: #E2E8EC;
+  
+  /* Semantic Status Accents */
+  --amber: #B26A00;
+  --rust: #B33A2B;
   --oxblood: #7A1F1A;
-  --calm:    #2E6E62;
-
+  --calm: #2E6E62;
+  --calm-bg: #E8F3F0;
+  
+  /* Radii & Geometry */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-full: 9999px;
   --tap: 44px;
-  --gap: 14px;
-  --shell: 620px;
+  --shell: 480px;
+  --font: 'Work Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper:   #131A20;
+    --paper: #131A20;
     --surface: #1C252C;
-    --ink:     #E6ECEF;
-    --muted:   #9BAAB4;
-    --faint:   #74858F;
-    --rule:    #2E3A43;
-    --sunk:    #161E24;
-
-    --amber:   #E0A040;
-    --rust:    #E27A63;
+    --surface-subtle: #162027;
+    --ink: #E6ECEF;
+    --muted: #9BAAB4;
+    --faint: #74858F;
+    --rule: #2E3A43;
+    --sunk: #161E24;
+    --amber: #E0A040;
+    --rust: #E27A63;
     --oxblood: #D9695C;
-    --calm:    #6FB3A2;
+    --calm: #6FB3A2;
+    --calm-bg: #1A2E2A;
   }
 }
 
 * { box-sizing: border-box; }
 
-html, body {
+body {
   margin: 0;
   padding: 0;
-  height: 100%;
-}
-
-body {
   background: var(--paper);
   color: var(--ink);
-  font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: contain;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
 }
 
-/* Times, dates and counts read as data, so they get tabular figures
-   and tighter tracking than the prose around them. */
 .num, .meta time, .stat {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
-button, input, select, textarea {
-  font: inherit;
-  color: inherit;
-}
-
-button { cursor: pointer; }
-
-:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-  border-radius: 3px;
-}
-
-/* ---------- shell ---------- */
-
 #app {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
+  width: 100%;
   max-width: var(--shell);
-  margin: 0 auto;
+  position: relative;
+  padding-bottom: 84px;
 }
 
+/* Header bar with badge */
 header.bar {
   position: sticky;
   top: 0;
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+  justify-content: space-between;
+  padding: max(12px, env(safe-area-inset-top)) 16px 12px;
   background: var(--paper);
   border-bottom: 1px solid var(--rule);
+}
+
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-badge {
+  width: 24px;
+  height: 24px;
+  background: var(--ink);
+  color: var(--calm);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 header.bar h1 {
   margin: 0;
   font-size: 17px;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: -0.015em;
-  flex: 1;
 }
 
-.iconbtn {
-  min-width: var(--tap);
-  min-height: 36px;
-  padding: 0 10px;
-  background: none;
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.iconbtn[data-busy="1"] { color: var(--calm); border-color: var(--calm); }
-
-#screen {
-  flex: 1;
-  padding: 16px 16px 96px;
-}
-
-/* ---------- the urgency line: this is the point of the app ---------- */
-
-.lede {
-  margin: 0 0 18px;
-  font-size: 20px;
-  line-height: 1.3;
+.sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--calm-bg);
+  color: var(--calm);
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  max-width: 34ch;
+  border: none;
 }
 
-.lede.quiet { font-weight: 500; color: var(--muted); }
-
-/* ---------- cards ---------- */
-
+/* Updated Card Styles with 4px Urgency Edges */
 .card {
   position: relative;
   display: flex;
   align-items: stretch;
-  gap: 0;
   margin-bottom: 10px;
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: transform 0.1s ease;
 }
 
 .card .edge {
   flex: 0 0 4px;
   background: transparent;
 }
-
-.card[data-risk="late"]  .edge { background: var(--oxblood); }
+.card[data-risk="late"] .edge { background: var(--oxblood); }
 .card[data-risk="today"] .edge { background: var(--rust); }
-.card[data-risk="soon"]  .edge { background: var(--amber); }
+.card[data-risk="soon"] .edge { background: var(--amber); }
 
 .card .body {
   flex: 1;
   min-width: 0;
-  padding: 12px 12px 12px 13px;
+  padding: 12px 14px;
   text-align: left;
   background: none;
   border: 0;
 }
 
 .card h3 {
-  margin: 0;
-  font-size: 15.5px;
-  font-weight: 550;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
-}
-
-.card.done h3 { color: var(--muted); text-decoration: line-through; }
-
-.signal {
-  margin: 5px 0 0;
-  font-size: 13.5px;
+  margin: 0 0 4px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.005em;
-}
-
-.signal[data-risk="late"]  { color: var(--oxblood); }
-.signal[data-risk="today"] { color: var(--rust); }
-.signal[data-risk="soon"]  { color: var(--amber); }
-
-.meta {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px 12px;
-}
-
-.tick {
-  flex: 0 0 52px;
-  background: none;
-  border: 0;
-  border-left: 1px solid var(--rule);
-  color: var(--faint);
-  font-size: 20px;
-  line-height: 1;
-}
-
-.tick:active { background: var(--sunk); }
-.tick.on { color: var(--calm); }
-
-/* ---------- groups, chips, empty ---------- */
-
-.group {
-  margin: 22px 0 8px;
-  font-size: 13.5px;
-  font-weight: 650;
-  color: var(--muted);
-}
-
-.group:first-child { margin-top: 0; }
-
-.group.link {
-  display: block;
-  width: 100%;
-  padding: 0;
-  background: none;
-  border: 0;
-  text-align: left;
+  line-height: 1.35;
   color: var(--ink);
 }
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.card.done h3 {
+  color: var(--muted);
+  text-decoration: line-through;
+}
 
-.chip {
+.chip-tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: var(--sunk);
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  font-size: 13px;
-  color: var(--ink);
-}
-
-.chip button {
-  background: none;
-  border: 0;
-  padding: 0 2px;
-  color: var(--faint);
-  font-size: 15px;
-  line-height: 1;
-}
-
-.empty {
-  padding: 28px 4px;
+  gap: 4px;
+  padding: 2px 7px;
+  background: var(--surface-subtle);
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
   color: var(--muted);
-  font-size: 15px;
-  max-width: 38ch;
+  margin-right: 6px;
+  margin-bottom: 4px;
 }
 
-.empty strong { color: var(--ink); font-weight: 600; }
+.chip-tag.late { background: #FDF2F0; color: var(--oxblood); }
+.chip-tag.today { background: #FDEEEB; color: var(--rust); }
+.chip-tag.soon { background: #FEF6EB; color: var(--amber); }
 
-/* ---------- compose ---------- */
-
-#fab {
-  position: fixed;
-  right: max(16px, calc(50vw - var(--shell) / 2 + 16px));
-  bottom: calc(68px + max(6px, env(safe-area-inset-bottom)));
-  z-index: 30;
-  width: 54px;
-  height: 54px;
-  border: 1px solid var(--ink);
-  border-radius: 27px;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 27px;
-  line-height: 1;
-}
-
-/* ---------- tabs ---------- */
-
+/* Bottom Tabs */
 nav.tabs {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--shell);
   bottom: 0;
   z-index: 25;
   display: flex;
@@ -307,32 +219,31 @@ nav.tabs {
 
 nav.tabs button {
   flex: 1;
-  min-height: 56px;
-  padding: 6px 2px;
+  min-height: 54px;
+  padding: 8px 4px;
   background: none;
   border: 0;
   border-top: 2px solid transparent;
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: 11px;
+  font-weight: 600;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
 }
 
 nav.tabs button[aria-current="page"] {
   color: var(--ink);
   border-top-color: var(--ink);
-  font-weight: 600;
 }
 
 nav.tabs .count {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
 }
-
 /* ---------- sheets ---------- */
 
 .sheet {
@@ -607,11 +518,16 @@ label.btn { cursor: pointer; }
 <body>
 <div id="app">
   <header class="bar">
+  <div class="brand-wrap">
+    <div class="brand-badge">✓</div>
     <h1>Ready</h1>
-    <button class="iconbtn" id="syncBtn" title="Sync now">Sync</button>
-    <button class="iconbtn" id="setBtn" title="Settings">Setup</button>
-  </header>
-  <main id="screen"></main>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <button class="sync-pill" id="syncBtn" title="Sync now">✓ Synced</button>
+    <button class="iconbtn" id="setBtn" title="Settings">⚙</button>
+  </div>
+</header>
+<main id="screen"></main>
   <nav class="tabs" id="tabs"></nav>
 </div>
 <button id="fab" title="Add a task">+</button>
