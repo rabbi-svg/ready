@@ -1,0 +1,1909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16212B">
+<title>Ready</title>
+<style>
+:root {
+  --paper:   #E9EDEF;
+  --surface: #FFFFFF;
+  --ink:     #16212B;
+  --muted:   #5E717F;
+  --faint:   #8B9AA5;
+  --rule:    #CBD5DB;
+  --sunk:    #DDE3E7;
+
+  --amber:   #B26A00;
+  --rust:    #B33A2B;
+  --oxblood: #7A1F1A;
+  --calm:    #2E6E62;
+
+  --tap: 44px;
+  --gap: 14px;
+  --shell: 620px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:   #131A20;
+    --surface: #1C252C;
+    --ink:     #E6ECEF;
+    --muted:   #9BAAB4;
+    --faint:   #74858F;
+    --rule:    #2E3A43;
+    --sunk:    #161E24;
+
+    --amber:   #E0A040;
+    --rust:    #E27A63;
+    --oxblood: #D9695C;
+    --calm:    #6FB3A2;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: contain;
+}
+
+/* Times, dates and counts read as data, so they get tabular figures
+   and tighter tracking than the prose around them. */
+.num, .meta time, .stat {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button { cursor: pointer; }
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ---------- shell ---------- */
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: var(--shell);
+  margin: 0 auto;
+}
+
+header.bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+
+header.bar h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  flex: 1;
+}
+
+.iconbtn {
+  min-width: var(--tap);
+  min-height: 36px;
+  padding: 0 10px;
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.iconbtn[data-busy="1"] { color: var(--calm); border-color: var(--calm); }
+
+#screen {
+  flex: 1;
+  padding: 16px 16px 96px;
+}
+
+/* ---------- the urgency line: this is the point of the app ---------- */
+
+.lede {
+  margin: 0 0 18px;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  max-width: 34ch;
+}
+
+.lede.quiet { font-weight: 500; color: var(--muted); }
+
+/* ---------- cards ---------- */
+
+.card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.card .edge {
+  flex: 0 0 4px;
+  background: transparent;
+}
+
+.card[data-risk="late"]        .edge { background: var(--oxblood); }
+.card[data-risk="at_risk"]     .edge { background: var(--rust); }
+.card[data-risk="start_today"] .edge { background: var(--amber); }
+
+.card .body {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 12px 12px 13px;
+  text-align: left;
+  background: none;
+  border: 0;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 550;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.card.done h3 { color: var(--muted); text-decoration: line-through; }
+
+.signal {
+  margin: 5px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.signal[data-risk="late"]        { color: var(--oxblood); }
+.signal[data-risk="at_risk"]     { color: var(--rust); }
+.signal[data-risk="start_today"] { color: var(--amber); }
+
+.meta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+}
+
+.tick {
+  flex: 0 0 52px;
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  color: var(--faint);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.tick:active { background: var(--sunk); }
+.tick.on { color: var(--calm); }
+
+/* ---------- groups, chips, empty ---------- */
+
+.group {
+  margin: 22px 0 8px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.group:first-child { margin-top: 0; }
+
+.group.link {
+  display: block;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  color: var(--ink);
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--sunk);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.chip button {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.empty {
+  padding: 28px 4px;
+  color: var(--muted);
+  font-size: 15px;
+  max-width: 38ch;
+}
+
+.empty strong { color: var(--ink); font-weight: 600; }
+
+/* ---------- compose ---------- */
+
+#fab {
+  position: fixed;
+  right: max(16px, calc(50vw - var(--shell) / 2 + 16px));
+  bottom: calc(68px + max(6px, env(safe-area-inset-bottom)));
+  z-index: 30;
+  width: 54px;
+  height: 54px;
+  border: 1px solid var(--ink);
+  border-radius: 27px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 27px;
+  line-height: 1;
+}
+
+/* ---------- tabs ---------- */
+
+nav.tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+nav.tabs button {
+  flex: 1;
+  min-height: 56px;
+  padding: 6px 2px;
+  background: none;
+  border: 0;
+  border-top: 2px solid transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+nav.tabs button[aria-current="page"] {
+  color: var(--ink);
+  border-top-color: var(--ink);
+  font-weight: 600;
+}
+
+nav.tabs .count {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- sheets ---------- */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--paper);
+  overflow-y: auto;
+  padding: 0 16px calc(40px + env(safe-area-inset-bottom));
+  max-width: var(--shell);
+  margin: 0 auto;
+}
+
+.sheet header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: max(12px, env(safe-area-inset-top)) 0 12px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 18px;
+}
+
+.sheet header h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+section.block { margin-bottom: 26px; }
+
+section.block > h3 {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+label.field { display: block; margin-bottom: 14px; }
+
+label.field > span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+input[type="text"], input[type="date"], input[type="number"],
+input[type="url"], input[type="password"], textarea, select {
+  width: 100%;
+  padding: 11px 12px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+textarea { min-height: 78px; resize: vertical; }
+
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; min-width: 0; }
+
+.btn {
+  min-height: var(--tap);
+  padding: 0 16px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 14.5px;
+  font-weight: 550;
+}
+
+.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.btn.danger  { color: var(--oxblood); border-color: var(--oxblood); background: none; }
+.btn.wide    { display: block; width: 100%; }
+.btn:disabled { opacity: .45; cursor: default; }
+
+.derived {
+  padding: 12px 14px;
+  background: var(--sunk);
+  border: 1px dashed var(--rule);
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.derived .stat { color: var(--ink); font-weight: 600; }
+.derived p { margin: 0 0 5px; }
+.derived p:last-child { margin: 0; }
+
+ul.plain { list-style: none; margin: 0; padding: 0; }
+
+ul.plain li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 14.5px;
+}
+
+ul.plain li:last-child { border-bottom: 0; }
+ul.plain li.gone { color: var(--muted); text-decoration: line-through; }
+ul.plain li .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+ul.plain li .age { color: var(--faint); font-size: 12.5px; white-space: nowrap; }
+
+.check {
+  flex: 0 0 24px;
+  height: 24px;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  color: var(--calm);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.log { margin: 0; padding: 0; list-style: none; }
+
+.log li {
+  padding: 10px 0 10px 12px;
+  border-left: 2px solid var(--rule);
+  margin-bottom: 2px;
+  font-size: 14.5px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.log time {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.pick {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 6px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  text-align: left;
+  font-size: 14.5px;
+}
+
+.preview {
+  margin-top: 8px;
+  min-height: 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.preview b { color: var(--ink); font-weight: 600; }
+
+.toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 60;
+  max-width: calc(var(--shell) - 32px);
+  margin: 0 auto;
+  padding: 12px 14px;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.toast.bad { background: var(--oxblood); }
+
+.warn {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--rust);
+  border-left: 4px solid var(--rust);
+  border-radius: 8px;
+  font-size: 13.5px;
+}
+
+.warn code { font-size: 12.5px; overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: rise .18s ease-out; }
+  @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <h1>Ready</h1>
+    <button class="iconbtn" id="syncBtn" title="Sync now">Sync</button>
+    <button class="iconbtn" id="setBtn" title="Settings">Setup</button>
+  </header>
+  <main id="screen"></main>
+  <nav class="tabs" id="tabs"></nav>
+</div>
+<button id="fab" title="Add a task">+</button>
+
+<script>
+"use strict";
+
+/* ================================================================
+   storage — degrades quietly so the app still runs from a file://
+   page or in private browsing, where localStorage may be blocked
+   ================================================================ */
+
+var mem = {};
+var persists = (function () {
+  try {
+    localStorage.setItem('ready.probe', '1');
+    localStorage.removeItem('ready.probe');
+    return true;
+  } catch (e) { return false; }
+})();
+
+function rawGet(k) {
+  try { return persists ? localStorage.getItem(k) : (mem[k] || null); }
+  catch (e) { return mem[k] || null; }
+}
+function rawSet(k, v) {
+  mem[k] = v;
+  try { if (persists) localStorage.setItem(k, v); } catch (e) { persists = false; }
+}
+function jget(k, fallback) {
+  var v = rawGet(k);
+  if (!v) return fallback;
+  try { return JSON.parse(v); } catch (e) { return fallback; }
+}
+function jset(k, v) { rawSet(k, JSON.stringify(v)); }
+
+var K = {
+  cfg: 'ready.cfg',
+  server: 'ready.server',
+  outbox: 'ready.outbox',
+  errors: 'ready.errors',
+  timer: 'ready.timer'
+};
+
+function getCfg()  { return jget(K.cfg, null); }
+function setCfg(c) { jset(K.cfg, c); }
+
+var EMPTY = { tasks: [], needs: [], notes: [], attachments: [], settings: {} };
+
+function getServer() { return jget(K.server, EMPTY); }
+function setServer(s) {
+  jset(K.server, {
+    tasks: s.tasks || [],
+    needs: s.needs || [],
+    notes: s.notes || [],
+    attachments: s.attachments || [],
+    settings: s.settings || {}
+  });
+}
+function getOutbox()  { return jget(K.outbox, []); }
+function setOutbox(o) { jset(K.outbox, o); }
+function getErrors()  { return jget(K.errors, []); }
+
+function pushError(text) {
+  var list = getErrors();
+  list.unshift({ at: new Date().toISOString(), text: String(text) });
+  jset(K.errors, list.slice(0, 20));
+}
+
+/* ================================================================
+   dates — always local, always YYYY-MM-DD strings, never parsed
+   through Date for comparison
+   ================================================================ */
+
+function pad(n) { return n < 10 ? '0' + n : String(n); }
+function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function today() { return ymd(new Date()); }
+
+function shiftDay(s, n) {
+  var p = String(s).split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  d.setDate(d.getDate() + n);
+  return ymd(d);
+}
+
+// Whole days from a to b. Positive means b is later.
+function dayGap(a, b) {
+  var x = String(a).split('-'), y = String(b).split('-');
+  return Math.round(
+    (Date.UTC(+y[0], +y[1] - 1, +y[2]) - Date.UTC(+x[0], +x[1] - 1, +x[2])) / 86400000
+  );
+}
+
+var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function niceDate(s) {
+  if (!s) return '';
+  var gap = dayGap(today(), s);
+  if (gap === 0) return 'today';
+  if (gap === 1) return 'tomorrow';
+  if (gap === -1) return 'yesterday';
+  var p = String(s).split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  var base = DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
+  return Math.abs(gap) > 300 ? base + ' ' + d.getFullYear() : base;
+}
+
+function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+function niceMins(m) {
+  m = Number(m) || 0;
+  if (m < 60) return m + 'm';
+  var h = Math.floor(m / 60), r = m % 60;
+  if (!r) return h + 'h';
+  return h + 'h ' + r + 'm';
+}
+
+function ageInDays(iso) {
+  if (!iso) return 0;
+  var then = new Date(iso);
+  if (isNaN(then.getTime())) return 0;
+  return dayGap(ymd(then), today());
+}
+
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function esc(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* ================================================================
+   the outbox: local state is server state plus unsent mutations,
+   replayed on top. Optimistic UI falls out of this for free.
+   ================================================================ */
+
+function enqueue(op, data) {
+  var box = getOutbox();
+  box.push({ mid: uuid(), op: op, data: data });
+  setOutbox(box);
+  render();
+  scheduleSync();
+}
+
+function splitIds(v) {
+  return String(v || '').split(',').map(function (s) { return s.trim(); })
+    .filter(function (s) { return s !== ''; });
+}
+
+function applyLocal(state, m) {
+  var d = m.data || {};
+  var i;
+
+  function taskIndex(id) {
+    for (var k = 0; k < state.tasks.length; k++) {
+      if (String(state.tasks[k].id) === String(id)) return k;
+    }
+    return -1;
+  }
+
+  if (m.op === 'upsertTask') {
+    i = taskIndex(d.id);
+    if (i >= 0) {
+      Object.keys(d).forEach(function (key) {
+        if (key !== 'id') state.tasks[i][key] = d[key];
+      });
+      state.tasks[i].updated_at = new Date().toISOString();
+    } else {
+      state.tasks.push({
+        id: d.id, title: d.title || '', estimate_min: d.estimate_min || '',
+        actual_min: '', deadline: d.deadline || '', blocked_by: d.blocked_by || '',
+        parent_id: d.parent_id || '', tags: d.tags || '', recur_days: d.recur_days || '',
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        completed_at: '', archived: false
+      });
+    }
+  } else if (m.op === 'completeTask') {
+    i = taskIndex(d.id);
+    if (i >= 0) {
+      state.tasks[i].completed_at = new Date().toISOString();
+      if (d.actual_min) state.tasks[i].actual_min = d.actual_min;
+      var recur = parseInt(state.tasks[i].recur_days, 10);
+      if (recur > 0 && d.next_id) {
+        var src = state.tasks[i];
+        state.tasks.push({
+          id: d.next_id, title: src.title, estimate_min: src.estimate_min,
+          actual_min: '', deadline: shiftDay(today(), recur), blocked_by: src.blocked_by,
+          parent_id: src.parent_id, tags: src.tags, recur_days: src.recur_days,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          completed_at: '', archived: false
+        });
+      }
+    }
+  } else if (m.op === 'reopenTask') {
+    i = taskIndex(d.id);
+    if (i >= 0) { state.tasks[i].completed_at = ''; state.tasks[i].actual_min = ''; }
+  } else if (m.op === 'deleteTask') {
+    state.tasks = state.tasks.filter(function (t) { return String(t.id) !== String(d.id); });
+    state.tasks.forEach(function (t) {
+      var deps = splitIds(t.blocked_by);
+      if (deps.indexOf(String(d.id)) !== -1) {
+        t.blocked_by = deps.filter(function (x) { return x !== String(d.id); }).join(',');
+      }
+      if (String(t.parent_id) === String(d.id)) t.parent_id = '';
+    });
+    state.needs = state.needs.filter(function (n) { return String(n.task_id) !== String(d.id); });
+    state.notes = state.notes.filter(function (n) { return String(n.task_id) !== String(d.id); });
+  } else if (m.op === 'addNote') {
+    state.notes.push({
+      id: d.id, task_id: d.task_id, body: d.body, created_at: new Date().toISOString()
+    });
+  } else if (m.op === 'upsertNeed') {
+    var found = -1;
+    for (i = 0; i < state.needs.length; i++) {
+      if (String(state.needs[i].id) === String(d.id)) { found = i; break; }
+    }
+    if (found >= 0) {
+      if (d.label !== undefined) state.needs[found].label = d.label;
+      if (d.resolved !== undefined) {
+        state.needs[found].resolved = !!d.resolved;
+        state.needs[found].resolved_at = d.resolved ? new Date().toISOString() : '';
+      }
+    } else {
+      state.needs.push({
+        id: d.id, task_id: d.task_id, label: d.label || '', resolved: !!d.resolved,
+        created_at: new Date().toISOString(),
+        resolved_at: d.resolved ? new Date().toISOString() : ''
+      });
+    }
+  } else if (m.op === 'deleteNeed') {
+    state.needs = state.needs.filter(function (n) { return String(n.id) !== String(d.id); });
+  } else if (m.op === 'setSetting') {
+    state.settings[d.key] = String(d.value);
+  }
+  return state;
+}
+
+function viewState() {
+  var state = JSON.parse(JSON.stringify(getServer()));
+  getOutbox().forEach(function (m) {
+    try { applyLocal(state, m); } catch (e) { /* a bad local replay must not blank the app */ }
+  });
+  return state;
+}
+
+/* ================================================================
+   derived facts — computed every render, never stored
+   ================================================================ */
+
+function buildContext() {
+  var s = viewState();
+  var ctx = {
+    today: today(),
+    tasks: s.tasks.filter(function (t) { return t.archived !== true && t.archived !== 'TRUE'; }),
+    settings: s.settings,
+    capacity: Math.max(1, parseInt(s.settings.daily_capacity_min, 10) || 240),
+    defaultEst: Math.max(1, parseInt(s.settings.default_estimate_min, 10) || 30),
+    staleDays: Math.max(1, parseInt(s.settings.stale_days, 10) || 7),
+    byId: {}, needsBy: {}, notesBy: {}, childrenBy: {}
+  };
+
+  ctx.tasks.forEach(function (t) { ctx.byId[String(t.id)] = t; });
+  ctx.tasks.forEach(function (t) {
+    var p = String(t.parent_id || '');
+    if (p && ctx.byId[p]) (ctx.childrenBy[p] = ctx.childrenBy[p] || []).push(t);
+  });
+  s.needs.forEach(function (n) {
+    (ctx.needsBy[String(n.task_id)] = ctx.needsBy[String(n.task_id)] || []).push(n);
+  });
+  s.notes.forEach(function (n) {
+    (ctx.notesBy[String(n.task_id)] = ctx.notesBy[String(n.task_id)] || []).push(n);
+  });
+  Object.keys(ctx.notesBy).forEach(function (k) {
+    ctx.notesBy[k].sort(function (a, b) {
+      return String(b.created_at).localeCompare(String(a.created_at));
+    });
+  });
+
+  ctx.chainMemo = {};
+  return ctx;
+}
+
+function isDone(t) { return !!t && String(t.completed_at || '') !== ''; }
+
+function openNeeds(t, ctx) {
+  return (ctx.needsBy[String(t.id)] || []).filter(function (n) {
+    return n.resolved !== true && n.resolved !== 'TRUE';
+  });
+}
+
+function openPrereqs(t, ctx) {
+  return splitIds(t.blocked_by)
+    .map(function (id) { return ctx.byId[id]; })
+    .filter(function (p) { return p && !isDone(p); });
+}
+
+function statusOf(t, ctx) {
+  if (isDone(t)) return 'done';
+  if (openPrereqs(t, ctx).length) return 'blocked';
+  if (openNeeds(t, ctx).length) return 'waiting';
+  return 'ready';
+}
+
+// Longest path of unfinished work standing between now and this task
+// being finishable, its own estimate included. The `seen` set is what
+// stops a dependency cycle from hanging the app.
+function chainMins(t, ctx, seen) {
+  if (!t || isDone(t)) return 0;
+  var id = String(t.id);
+  seen = seen || {};
+  if (seen[id]) return Number(t.estimate_min) || ctx.defaultEst;
+  if (ctx.chainMemo[id] !== undefined && Object.keys(seen).length === 0) {
+    return ctx.chainMemo[id];
+  }
+
+  var mine = {};
+  Object.keys(seen).forEach(function (k) { mine[k] = true; });
+  mine[id] = true;
+
+  var own = Number(t.estimate_min) || ctx.defaultEst;
+  var worst = 0;
+  openPrereqs(t, ctx).forEach(function (p) {
+    var v = chainMins(p, ctx, mine);
+    if (v > worst) worst = v;
+  });
+
+  var total = own + worst;
+  if (Object.keys(seen).length === 0) ctx.chainMemo[id] = total;
+  return total;
+}
+
+function decorate(t, ctx) {
+  var status = statusOf(t, ctx);
+  var chain = chainMins(t, ctx);
+  var days = Math.max(1, Math.ceil(chain / ctx.capacity));
+  var latestStart = t.deadline ? shiftDay(t.deadline, -(days - 1)) : '';
+  var risk = 'ok';
+
+  if (status !== 'done' && t.deadline) {
+    if (dayGap(t.deadline, ctx.today) > 0) risk = 'late';
+    else {
+      var slack = dayGap(latestStart, ctx.today);
+      if (slack > 0) risk = 'at_risk';
+      else if (slack === 0) risk = 'start_today';
+    }
+  }
+
+  var notes = ctx.notesBy[String(t.id)] || [];
+  var lastTouch = notes.length ? notes[0].created_at : t.created_at;
+
+  return {
+    task: t, status: status, chain: chain, daysNeeded: days,
+    latestStart: latestStart, risk: risk,
+    prereqs: openPrereqs(t, ctx), needs: openNeeds(t, ctx),
+    noteCount: notes.length,
+    stale: status === 'ready' && !!t.deadline && ageInDays(lastTouch) >= ctx.staleDays,
+    lastTouch: lastTouch
+  };
+}
+
+var RISK_RANK = { late: 0, at_risk: 1, start_today: 2, ok: 3 };
+
+function sortReady(a, b) {
+  var r = RISK_RANK[a.risk] - RISK_RANK[b.risk];
+  if (r) return r;
+  if (a.task.deadline !== b.task.deadline) {
+    if (!a.task.deadline) return 1;
+    if (!b.task.deadline) return -1;
+    return String(a.task.deadline).localeCompare(String(b.task.deadline));
+  }
+  var ea = Number(a.task.estimate_min) || 1e9;
+  var eb = Number(b.task.estimate_min) || 1e9;
+  if (ea !== eb) return ea - eb;
+  return String(a.task.created_at).localeCompare(String(b.task.created_at));
+}
+
+function riskSentence(d) {
+  if (d.risk === 'late') {
+    var over = dayGap(d.task.deadline, d.task ? today() : '');
+    return over === 0 ? 'Due today' : 'Late by ' + plural(over, 'day');
+  }
+  if (d.risk === 'at_risk') {
+    return 'Needed to start ' + plural(dayGap(d.latestStart, today()), 'day') + ' ago';
+  }
+  if (d.risk === 'start_today') return 'Start today';
+  return '';
+}
+
+// Would making `depId` a prerequisite of `taskId` close a loop?
+function wouldCycle(taskId, depId, ctx) {
+  var stack = [String(depId)], seen = {};
+  while (stack.length) {
+    var cur = stack.pop();
+    if (cur === String(taskId)) return true;
+    if (seen[cur]) continue;
+    seen[cur] = true;
+    var t = ctx.byId[cur];
+    if (t) splitIds(t.blocked_by).forEach(function (x) { stack.push(x); });
+  }
+  return false;
+}
+
+function findCycles(ctx) {
+  var bad = [];
+  ctx.tasks.forEach(function (t) {
+    splitIds(t.blocked_by).forEach(function (dep) {
+      if (ctx.byId[dep] && wouldCycle(t.id, dep, ctx)) {
+        bad.push(t.title + '  <->  ' + ctx.byId[dep].title);
+      }
+    });
+  });
+  return bad;
+}
+
+/* ================================================================
+   network
+   ================================================================ */
+
+var syncing = false;
+var syncTimer = null;
+var lastNetError = '';
+
+function scheduleSync() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(function () { sync(); }, 600);
+}
+
+function sync(loud) {
+  var cfg = getCfg();
+  if (!cfg || !cfg.url || syncing) return Promise.resolve();
+
+  syncing = true;
+  document.getElementById('syncBtn').setAttribute('data-busy', '1');
+
+  var box = getOutbox();
+
+  // Content-Type must stay text/plain. Anything else triggers a CORS
+  // preflight, and Apps Script does not answer OPTIONS requests.
+  return fetch(cfg.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ token: cfg.token, mutations: box })
+  })
+    .then(function (r) { return r.text(); })
+    .then(function (text) {
+      var res;
+      try { res = JSON.parse(text); }
+      catch (e) { throw new Error('Server sent something that was not JSON: ' + text.slice(0, 120)); }
+      if (!res.ok) throw new Error(res.error || 'Server refused the request');
+
+      var settled = {};
+      (res.applied || []).forEach(function (a) {
+        settled[a.mid] = true;
+        if (a.status === 'error') pushError((a.op || 'change') + ': ' + a.error);
+      });
+      setOutbox(getOutbox().filter(function (m) { return !settled[m.mid]; }));
+      setServer(res.state);
+      lastNetError = '';
+      if (loud) toast('Up to date');
+    })
+    .catch(function (err) {
+      lastNetError = err.message || String(err);
+      if (loud) toast(lastNetError, true);
+    })
+    .then(function () {
+      syncing = false;
+      document.getElementById('syncBtn').removeAttribute('data-busy');
+      render();
+    });
+}
+
+/* ================================================================
+   quick capture shorthand
+   ================================================================ */
+
+function parseQuick(raw) {
+  var text = ' ' + String(raw) + ' ';
+  var out = { title: '', deadline: '', estimate_min: '', tags: [], needs: [] };
+
+  // Stop at a comma (the separator between needs) or at any other
+  // shorthand marker, and swallow the separator so it does not strand
+  // itself in the title.
+  text = text.replace(/>([^,>!~#]+),?/g, function (_, body) {
+    var label = body.trim();
+    if (label) out.needs.push(label);
+    return ' ';
+  });
+
+  text = text.replace(/\s!(\S+)/g, function (whole, token) {
+    var d = readDate(token);
+    if (!d) return whole;
+    out.deadline = d;
+    return ' ';
+  });
+
+  text = text.replace(/\s~(\S+)/g, function (whole, token) {
+    var m = readMins(token);
+    if (!m) return whole;
+    out.estimate_min = m;
+    return ' ';
+  });
+
+  text = text.replace(/\s#(\S+)/g, function (whole, token) {
+    out.tags.push(token.toLowerCase());
+    return ' ';
+  });
+
+  out.title = text.replace(/\s+/g, ' ').trim();
+  return out;
+}
+
+function readDate(token) {
+  var t = String(token).toLowerCase();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  if (t === 'today' || t === 'tod') return today();
+  if (t === 'tomorrow' || t === 'tmr' || t === 'tom') return shiftDay(today(), 1);
+
+  var rel = t.match(/^(\d+)d$/);
+  if (rel) return shiftDay(today(), parseInt(rel[1], 10));
+
+  var names = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  var key = t.slice(0, 3);
+  if (names[key] !== undefined) {
+    var want = names[key];
+    var have = new Date().getDay();
+    var ahead = (want - have + 7) % 7;   // same weekday means today
+    return shiftDay(today(), ahead);
+  }
+  return '';
+}
+
+function readMins(token) {
+  var t = String(token).toLowerCase().trim();
+  var m = t.match(/^([\d.]+)\s*h$/);
+  if (m) return Math.round(parseFloat(m[1]) * 60);
+  m = t.match(/^([\d.]+)\s*m$/);
+  if (m) return Math.round(parseFloat(m[1]));
+  m = t.match(/^(\d+)$/);
+  if (m) return parseInt(m[1], 10);
+  return '';
+}
+
+/* ================================================================
+   rendering
+   ================================================================ */
+
+var tab = 'now';
+var openTask = null;
+var openScreen = null;   // 'compose' | 'settings' | 'picker'
+var pickerFilter = '';
+
+var TABS = [
+  { id: 'now', label: 'Now' },
+  { id: 'blocked', label: 'Blocked' },
+  { id: 'waiting', label: 'Waiting' },
+  { id: 'soon', label: 'Soon' },
+  { id: 'done', label: 'Done' }
+];
+
+function toast(msg, bad) {
+  var old = document.querySelector('.toast');
+  if (old) old.remove();
+  var el = document.createElement('div');
+  el.className = 'toast' + (bad ? ' bad' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function () { el.remove(); }, bad ? 6000 : 2200);
+}
+
+function card(d, opts) {
+  opts = opts || {};
+  var t = d.task;
+  var bits = [];
+
+  if (t.deadline) bits.push('<time>due ' + esc(niceDate(t.deadline)) + '</time>');
+  if (t.estimate_min) bits.push('<span>' + esc(niceMins(t.estimate_min)) + '</span>');
+  if (d.chain > (Number(t.estimate_min) || 0) && d.status === 'blocked') {
+    bits.push('<span>' + esc(niceMins(d.chain)) + ' of work in the chain</span>');
+  }
+  if (d.noteCount) bits.push('<span>' + plural(d.noteCount, 'note') + '</span>');
+  if (d.stale) bits.push('<span>untouched ' + plural(ageInDays(d.lastTouch), 'day') + '</span>');
+  if (opts.extra) bits.push('<span>' + esc(opts.extra) + '</span>');
+
+  var sentence = riskSentence(d);
+
+  return '' +
+    '<article class="card' + (d.status === 'done' ? ' done' : '') + '" data-risk="' + d.risk + '">' +
+      '<span class="edge"></span>' +
+      '<button class="body" data-act="open" data-id="' + esc(t.id) + '">' +
+        '<h3>' + esc(t.title || 'Untitled') + '</h3>' +
+        (sentence ? '<p class="signal" data-risk="' + d.risk + '">' + esc(sentence) + '</p>' : '') +
+        (bits.length ? '<p class="meta">' + bits.join('') + '</p>' : '') +
+      '</button>' +
+      '<button class="tick' + (d.status === 'done' ? ' on' : '') + '" data-act="toggle" ' +
+        'data-id="' + esc(t.id) + '" title="Mark done">' +
+        (d.status === 'done' ? '&#10003;' : '&#9711;') +
+      '</button>' +
+    '</article>';
+}
+
+function render() {
+  var ctx = buildContext();
+  var all = ctx.tasks.map(function (t) { return decorate(t, ctx); });
+
+  var ready = all.filter(function (d) { return d.status === 'ready'; }).sort(sortReady);
+  var blocked = all.filter(function (d) { return d.status === 'blocked'; });
+  var waiting = all.filter(function (d) { return d.status === 'waiting'; });
+  var done = all.filter(function (d) { return d.status === 'done'; });
+
+  renderTabs(ready, blocked, waiting, done);
+
+  var html = '';
+  var box = getOutbox();
+  if (box.length) {
+    html += '<div class="warn">' + plural(box.length, 'change') + ' not yet saved to your sheet.' +
+      (lastNetError ? ' <code>' + esc(lastNetError) + '</code>' : ' Syncing…') + '</div>';
+  } else if (lastNetError) {
+    if (location.protocol === 'file:') {
+      html += '<div class="warn">This page was opened straight from a file, and ' +
+        'Google will not accept requests from a file. Put the app online — even a ' +
+        'free static host works — and it will connect. ' +
+        '<code>' + esc(lastNetError) + '</code></div>';
+    } else {
+      html += '<div class="warn">Could not reach the server. <code>' +
+        esc(lastNetError) + '</code></div>';
+    }
+  }
+  if (!persists) {
+    html += '<div class="warn">This browser will not let the page store data, so your ' +
+      'tasks are only held in memory until you reload. Everything still saves to your sheet.</div>';
+  }
+
+  if (tab === 'now') html += viewNow(ready, blocked, waiting, ctx);
+  else if (tab === 'blocked') html += viewBlocked(blocked, ctx);
+  else if (tab === 'waiting') html += viewWaiting(waiting, ctx);
+  else if (tab === 'soon') html += viewSoon(all, ctx);
+  else html += viewDone(done, ctx);
+
+  document.getElementById('screen').innerHTML = html;
+  renderSheet(ctx);
+}
+
+function renderTabs(ready, blocked, waiting, done) {
+  var counts = {
+    now: ready.length, blocked: blocked.length, waiting: waiting.length,
+    soon: 0, done: done.length
+  };
+  counts.soon = ready.concat(blocked, waiting).filter(function (d) {
+    return d.task.deadline;
+  }).length;
+
+  document.getElementById('tabs').innerHTML = TABS.map(function (t) {
+    return '<button data-act="tab" data-tab="' + t.id + '"' +
+      (tab === t.id ? ' aria-current="page"' : '') + '>' +
+      '<span class="count">' + counts[t.id] + '</span>' +
+      '<span>' + t.label + '</span></button>';
+  }).join('');
+}
+
+function viewNow(ready, blocked, waiting, ctx) {
+  if (!ctx.tasks.length) {
+    return '<p class="empty"><strong>Nothing here yet.</strong><br>' +
+      'Tap + and type what you need to do. You can add a deadline and an ' +
+      'estimate in the same line: <br><br>' +
+      'fix the sink !fri ~2h #plumbing &gt;washer</p>';
+  }
+
+  if (!ready.length) {
+    var why = [];
+    if (blocked.length) why.push(plural(blocked.length, 'task') + ' waiting on other tasks');
+    if (waiting.length) why.push(plural(waiting.length, 'task') + ' waiting on something you need');
+    return '<p class="lede quiet">Nothing is ready to start.</p>' +
+      '<p class="empty">' + (why.length
+        ? esc(why.join(', ')) + '. Clear one of those to unlock work.'
+        : 'Everything is done.') + '</p>';
+  }
+
+  var urgent = ready.filter(function (d) { return d.risk !== 'ok'; });
+  var lede;
+  if (!urgent.length) {
+    lede = plural(ready.length, 'thing') + ' ready, nothing pressing.';
+  } else if (urgent.length === 1) {
+    lede = riskSentence(urgent[0]).toLowerCase().indexOf('start') === 0
+      ? 'One thing needs starting today.'
+      : 'One thing has slipped past its start date.';
+  } else {
+    lede = plural(urgent.length, 'thing') + ' need attention today.';
+  }
+
+  return '<p class="lede">' + esc(lede) + '</p>' +
+    ready.map(function (d) { return card(d, {}); }).join('');
+}
+
+function viewBlocked(blocked, ctx) {
+  if (!blocked.length) {
+    return '<p class="empty"><strong>Nothing is blocked.</strong><br>' +
+      'When one task has to happen before another, open the later one and add ' +
+      'the earlier one under “Blocked by”.</p>';
+  }
+
+  var groups = {};
+  blocked.forEach(function (d) {
+    d.prereqs.forEach(function (p) {
+      (groups[String(p.id)] = groups[String(p.id)] || { p: p, list: [] }).list.push(d);
+    });
+  });
+
+  return Object.keys(groups).map(function (id) {
+    var g = groups[id];
+    return '<button class="group link" data-act="open" data-id="' + esc(g.p.id) + '">' +
+        'Finish “' + esc(g.p.title) + '” to unlock ' + plural(g.list.length, 'task') +
+      '</button>' +
+      g.list.map(function (d) { return card(d, {}); }).join('');
+  }).join('');
+}
+
+function viewWaiting(waiting, ctx) {
+  var rows = [];
+  waiting.forEach(function (d) {
+    d.needs.forEach(function (n) { rows.push({ d: d, n: n }); });
+  });
+  rows.sort(function (a, b) {
+    return String(a.n.created_at).localeCompare(String(b.n.created_at));
+  });
+
+  if (!rows.length) {
+    return '<p class="empty"><strong>Not waiting on anything.</strong><br>' +
+      'When a task needs a part, a price or an answer from someone, add it under ' +
+      '“Still needed” so it shows up here.</p>';
+  }
+
+  return '<p class="lede quiet">' + plural(rows.length, 'thing') + ' to chase.</p>' +
+    '<ul class="plain">' + rows.map(function (r) {
+      var age = ageInDays(r.n.created_at);
+      return '<li>' +
+        '<button class="check" data-act="need-done" data-id="' + esc(r.n.id) + '" ' +
+          'title="Got it">&#9711;</button>' +
+        '<span class="grow">' + esc(r.n.label) +
+          '<br><button class="group link" data-act="open" data-id="' + esc(r.d.task.id) + '" ' +
+          'style="font-weight:400;font-size:13px;color:var(--muted);margin:2px 0 0">for ' +
+          esc(r.d.task.title) + '</button>' +
+        '</span>' +
+        '<span class="age">' + (age === 0 ? 'today' : plural(age, 'day')) + '</span>' +
+      '</li>';
+    }).join('') + '</ul>';
+}
+
+function viewSoon(all, ctx) {
+  var dated = all.filter(function (d) { return d.status !== 'done' && d.task.deadline; });
+  if (!dated.length) {
+    return '<p class="empty"><strong>No deadlines set.</strong><br>' +
+      'Add one to a task and it will appear here, along with the date you ' +
+      'need to start by.</p>';
+  }
+
+  dated.sort(function (a, b) {
+    return String(a.task.deadline).localeCompare(String(b.task.deadline));
+  });
+
+  var buckets = [
+    { label: 'Overdue', list: [] },
+    { label: 'Today', list: [] },
+    { label: 'Next seven days', list: [] },
+    { label: 'Later', list: [] }
+  ];
+
+  dated.forEach(function (d) {
+    var gap = dayGap(ctx.today, d.task.deadline);
+    if (gap < 0) buckets[0].list.push(d);
+    else if (gap === 0) buckets[1].list.push(d);
+    else if (gap <= 7) buckets[2].list.push(d);
+    else buckets[3].list.push(d);
+  });
+
+  return buckets.filter(function (b) { return b.list.length; }).map(function (b) {
+    return '<p class="group">' + b.label + '</p>' +
+      b.list.map(function (d) {
+        var extra = '';
+        if (d.status === 'blocked') extra = 'blocked';
+        else if (d.status === 'waiting') extra = 'waiting on something';
+        return card(d, { extra: extra });
+      }).join('');
+  }).join('');
+}
+
+function viewDone(done, ctx) {
+  var recent = done.filter(function (d) { return ageInDays(d.task.completed_at) <= 30; });
+  recent.sort(function (a, b) {
+    return String(b.task.completed_at).localeCompare(String(a.task.completed_at));
+  });
+
+  if (!recent.length) {
+    return '<p class="empty"><strong>Nothing finished in the last month.</strong><br>' +
+      'Completed tasks land here with your estimate next to the time it really took.</p>';
+  }
+
+  return '<p class="lede quiet">' + plural(recent.length, 'thing') + ' done this month.</p>' +
+    recent.map(function (d) {
+      var extra = '';
+      var est = Number(d.task.estimate_min), act = Number(d.task.actual_min);
+      if (est && act) extra = 'guessed ' + niceMins(est) + ', took ' + niceMins(act);
+      else if (act) extra = 'took ' + niceMins(act);
+      return card(d, { extra: extra });
+    }).join('');
+}
+
+/* ---------------- sheets ---------------- */
+
+function renderSheet(ctx) {
+  var existing = document.querySelector('.sheet');
+  if (existing) existing.remove();
+
+  var html = '';
+  if (openScreen === 'compose') html = sheetCompose();
+  else if (openScreen === 'settings') html = sheetSettings(ctx);
+  else if (openScreen === 'picker') html = sheetPicker(ctx);
+  else if (openTask) html = sheetTask(ctx);
+  else return;
+
+  var el = document.createElement('div');
+  el.className = 'sheet';
+  el.innerHTML = html;
+  document.body.appendChild(el);
+
+  var focus = el.querySelector('[data-autofocus]');
+  if (focus) focus.focus();
+}
+
+function sheetCompose() {
+  return '' +
+    '<header><h2>New task</h2>' +
+      '<button class="btn" data-act="close">Cancel</button>' +
+      '<button class="btn primary" data-act="quick-save">Save</button></header>' +
+    '<label class="field"><span>What needs doing?</span>' +
+      '<input type="text" id="quickInput" data-autofocus placeholder="fix the sink !fri ~2h #plumbing &gt;washer">' +
+    '</label>' +
+    '<p class="preview" id="quickPreview"></p>' +
+    '<section class="block"><h3>Shorthand</h3>' +
+      '<ul class="plain">' +
+        '<li><span class="grow">!fri, !tomorrow, !3d, !2026-10-03</span><span class="age">deadline</span></li>' +
+        '<li><span class="grow">~30m, ~2h, ~1.5h</span><span class="age">estimate</span></li>' +
+        '<li><span class="grow">#garage</span><span class="age">tag</span></li>' +
+        '<li><span class="grow">&gt;3mm washer</span><span class="age">still needed</span></li>' +
+      '</ul>' +
+      '<p class="empty" style="padding:12px 0 0">All optional. A plain title works.</p>' +
+    '</section>';
+}
+
+function sheetPicker(ctx) {
+  var t = ctx.byId[String(openTask)];
+  if (!t) return '';
+  var current = splitIds(t.blocked_by);
+  var f = pickerFilter.toLowerCase();
+
+  var options = ctx.tasks.filter(function (o) {
+    if (String(o.id) === String(t.id)) return false;
+    if (isDone(o)) return false;
+    if (current.indexOf(String(o.id)) !== -1) return false;
+    if (f && String(o.title).toLowerCase().indexOf(f) === -1) return false;
+    return true;
+  }).slice(0, 40);
+
+  return '' +
+    '<header><h2>What has to happen first?</h2>' +
+      '<button class="btn" data-act="close-picker">Done</button></header>' +
+    '<label class="field"><span>Search your open tasks</span>' +
+      '<input type="text" id="pickerSearch" data-autofocus value="' + esc(pickerFilter) + '"></label>' +
+    (options.length
+      ? options.map(function (o) {
+          return '<button class="pick" data-act="add-dep" data-id="' + esc(o.id) + '">' +
+            esc(o.title) + '</button>';
+        }).join('')
+      : '<p class="empty">No open tasks match. Create the earlier task first, ' +
+        'then come back and link it.</p>');
+}
+
+function sheetTask(ctx) {
+  var t = ctx.byId[String(openTask)];
+  if (!t) { openTask = null; return ''; }
+
+  var d = decorate(t, ctx);
+  var needs = (ctx.needsBy[String(t.id)] || []);
+  var notes = (ctx.notesBy[String(t.id)] || []);
+  var kids = (ctx.childrenBy[String(t.id)] || []);
+  var timer = jget(K.timer, null);
+  var running = timer && String(timer.taskId) === String(t.id);
+
+  var statusWord = { ready: 'Ready to start', blocked: 'Blocked', waiting: 'Waiting on something', done: 'Done' }[d.status];
+
+  var derived = '<p><span class="stat">' + esc(statusWord) + '</span></p>';
+  if (d.status !== 'done') {
+    if (d.chain > (Number(t.estimate_min) || 0)) {
+      derived += '<p><span class="stat">' + esc(niceMins(d.chain)) +
+        '</span> of work including everything that comes first</p>';
+    }
+    if (t.deadline) {
+      derived += '<p>Due <span class="stat">' + esc(niceDate(t.deadline)) + '</span>, ' +
+        'so start by <span class="stat">' + esc(niceDate(d.latestStart)) + '</span></p>';
+      var s = riskSentence(d);
+      if (s) derived += '<p><span class="stat">' + esc(s) + '</span></p>';
+    } else {
+      derived += '<p>No deadline, so nothing to be late for</p>';
+    }
+  } else if (t.actual_min) {
+    derived += '<p>Took <span class="stat">' + esc(niceMins(t.actual_min)) + '</span>' +
+      (t.estimate_min ? ', guessed ' + esc(niceMins(t.estimate_min)) : '') + '</p>';
+  }
+
+  return '' +
+    '<header><h2>' + (d.status === 'done' ? 'Finished task' : 'Task') + '</h2>' +
+      '<button class="btn" data-act="close">Close</button></header>' +
+
+    '<label class="field"><span>Title</span>' +
+      '<input type="text" id="fTitle" value="' + esc(t.title) + '"></label>' +
+
+    '<div class="row">' +
+      '<label class="field"><span>Deadline</span>' +
+        '<input type="date" id="fDeadline" value="' + esc(t.deadline || '') + '"></label>' +
+      '<label class="field"><span>Estimate</span>' +
+        '<input type="text" id="fEstimate" placeholder="2h" value="' +
+          esc(t.estimate_min ? niceMins(t.estimate_min) : '') + '"></label>' +
+    '</div>' +
+
+    '<div class="row">' +
+      '<label class="field"><span>Tags</span>' +
+        '<input type="text" id="fTags" value="' + esc(t.tags || '') + '"></label>' +
+      '<label class="field"><span>Repeat every … days</span>' +
+        '<input type="number" id="fRecur" min="1" value="' + esc(t.recur_days || '') + '"></label>' +
+    '</div>' +
+
+    '<button class="btn primary wide" data-act="save-task" style="margin-bottom:26px">Save changes</button>' +
+
+    '<section class="block"><h3>What the app works out</h3>' +
+      '<div class="derived">' + derived + '</div></section>' +
+
+    '<section class="block"><h3>Blocked by</h3>' +
+      (splitIds(t.blocked_by).length
+        ? '<div class="chips">' + splitIds(t.blocked_by).map(function (id) {
+            var p = ctx.byId[id];
+            return '<span class="chip">' +
+              (p ? esc(p.title) + (isDone(p) ? ' (done)' : '') : 'missing task') +
+              '<button data-act="rm-dep" data-id="' + esc(id) + '" title="Remove">&times;</button>' +
+            '</span>';
+          }).join('') + '</div>'
+        : '<p class="empty" style="padding:0 0 8px">Nothing has to happen first.</p>') +
+      '<button class="btn wide" data-act="open-picker" style="margin-top:10px">Add a prerequisite</button>' +
+    '</section>' +
+
+    '<section class="block"><h3>Still needed</h3>' +
+      (needs.length
+        ? '<ul class="plain">' + needs.map(function (n) {
+            var got = n.resolved === true || n.resolved === 'TRUE';
+            return '<li' + (got ? ' class="gone"' : '') + '>' +
+              '<button class="check" data-act="need-toggle" data-id="' + esc(n.id) + '">' +
+                (got ? '&#10003;' : '&#9711;') + '</button>' +
+              '<span class="grow">' + esc(n.label) + '</span>' +
+              '<button class="chip" data-act="need-del" data-id="' + esc(n.id) + '">Remove</button>' +
+            '</li>';
+          }).join('') + '</ul>'
+        : '<p class="empty" style="padding:0 0 8px">Nothing outstanding.</p>') +
+      '<div class="row" style="margin-top:10px">' +
+        '<input type="text" id="fNeed" placeholder="a part, a price, an answer">' +
+        '<button class="btn" data-act="add-need" style="flex:0 0 auto">Add</button>' +
+      '</div>' +
+    '</section>' +
+
+    (kids.length ? '<section class="block"><h3>Subtasks ' +
+      kids.filter(function (k) { return isDone(k); }).length + ' of ' + kids.length +
+      ' done</h3>' + kids.map(function (k) {
+        return card(decorate(k, ctx), {});
+      }).join('') + '</section>' : '') +
+
+    '<section class="block"><h3>Time</h3>' +
+      '<div class="row">' +
+        '<button class="btn" data-act="timer">' +
+          (running ? 'Stop timer (' + niceMins(Math.max(1, Math.round((Date.now() - timer.startedAt) / 60000))) + ')' : 'Start timer') +
+        '</button>' +
+        '<input type="text" id="fActual" placeholder="or type it: 45m" value="' +
+          esc(t.actual_min ? niceMins(t.actual_min) : '') + '">' +
+        '<button class="btn" data-act="save-actual" style="flex:0 0 auto">Set</button>' +
+      '</div>' +
+    '</section>' +
+
+    '<section class="block"><h3>Notes</h3>' +
+      '<textarea id="fNote" placeholder="What happened, what you found, where you left off"></textarea>' +
+      '<button class="btn wide" data-act="add-note" style="margin-top:8px">Add note</button>' +
+      (notes.length ? '<ul class="log" style="margin-top:16px">' + notes.map(function (n) {
+        return '<li><time>' + esc(niceDate(ymd(new Date(n.created_at)))) + '</time>' +
+          esc(n.body) + '</li>';
+      }).join('') + '</ul>' : '') +
+    '</section>' +
+
+    '<section class="block">' +
+      '<div class="row">' +
+        '<button class="btn primary" data-act="toggle" data-id="' + esc(t.id) + '">' +
+          (d.status === 'done' ? 'Reopen' : 'Mark done') + '</button>' +
+        '<button class="btn" data-act="add-subtask">Add subtask</button>' +
+      '</div>' +
+      '<button class="btn danger wide" data-act="delete-task" style="margin-top:10px">Delete task</button>' +
+    '</section>';
+}
+
+function sheetSettings(ctx) {
+  var cfg = getCfg() || {};
+  var cycles = findCycles(ctx);
+  var errors = getErrors();
+  var box = getOutbox();
+
+  return '' +
+    '<header><h2>Setup</h2><button class="btn" data-act="close">Close</button></header>' +
+
+    '<section class="block"><h3>How much time you have</h3>' +
+      '<label class="field"><span>Hours you can actually give this on a normal day</span>' +
+        '<input type="number" id="sCapacity" min="1" max="24" step="0.5" value="' +
+          (Math.round((ctx.capacity / 60) * 10) / 10) + '"></label>' +
+      '<p class="empty" style="padding:0 0 10px">This is what turns an estimate into a ' +
+        'start date. Four hours is a realistic default for work squeezed around other things.</p>' +
+      '<label class="field"><span>Nudge me about a task untouched for … days</span>' +
+        '<input type="number" id="sStale" min="1" max="90" value="' + ctx.staleDays + '"></label>' +
+      '<button class="btn primary wide" data-act="save-settings">Save</button>' +
+    '</section>' +
+
+    '<section class="block"><h3>Connection</h3>' +
+      '<label class="field"><span>Web app URL</span>' +
+        '<input type="url" id="sUrl" value="' + esc(cfg.url || '') + '"></label>' +
+      '<label class="field"><span>Token</span>' +
+        '<input type="password" id="sToken" value="' + esc(cfg.token || '') + '"></label>' +
+      '<button class="btn wide" data-act="save-conn">Save and test</button>' +
+      '<p class="empty" style="padding:10px 0 0">Stored on this device only.' +
+        (box.length ? ' ' + plural(box.length, 'change') + ' still waiting to send.' : '') + '</p>' +
+    '</section>' +
+
+    '<section class="block"><h3>Health</h3>' +
+      (cycles.length
+        ? '<div class="warn">These tasks each wait on the other, so neither can ever ' +
+          'start. Open one and remove a prerequisite.<br><br>' +
+          cycles.map(function (c) { return esc(c); }).join('<br>') + '</div>'
+        : '<p class="empty" style="padding:0">No circular dependencies.</p>') +
+    '</section>' +
+
+    (errors.length ? '<section class="block"><h3>Rejected changes</h3>' +
+      '<ul class="plain">' + errors.map(function (e) {
+        return '<li><span class="grow">' + esc(e.text) + '</span>' +
+          '<span class="age">' + esc(niceDate(ymd(new Date(e.at)))) + '</span></li>';
+      }).join('') + '</ul>' +
+      '<button class="btn wide" data-act="clear-errors" style="margin-top:10px">Clear</button>' +
+    '</section>' : '');
+}
+
+/* ================================================================
+   first run
+   ================================================================ */
+
+function renderSetupGate() {
+  document.getElementById('screen').innerHTML = '' +
+    '<p class="lede">Connect this app to your sheet.</p>' +
+    '<label class="field"><span>Web app URL (ends in /exec)</span>' +
+      '<input type="url" id="gUrl" data-autofocus placeholder="https://script.google.com/macros/s/…/exec"></label>' +
+    '<label class="field"><span>Token</span>' +
+      '<input type="password" id="gToken" placeholder="the TOKEN you set in Script Properties"></label>' +
+    '<button class="btn primary wide" data-act="gate-connect">Connect</button>' +
+    '<p class="empty">Both are stored on this device and sent only to your own ' +
+      'Apps Script deployment.</p>';
+  document.getElementById('tabs').innerHTML = '';
+  var f = document.getElementById('gUrl');
+  if (f) f.focus();
+}
+
+/* ================================================================
+   events
+   ================================================================ */
+
+function val(id) {
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+function currentTask() {
+  var ctx = buildContext();
+  return ctx.byId[String(openTask)];
+}
+
+document.addEventListener('click', function (ev) {
+  var btn = ev.target.closest('[data-act]');
+  if (!btn) return;
+  var act = btn.getAttribute('data-act');
+  var id = btn.getAttribute('data-id');
+
+  /* ---- navigation ---- */
+  if (act === 'tab') { tab = btn.getAttribute('data-tab'); render(); return; }
+  if (act === 'open') { openTask = id; openScreen = null; render(); return; }
+  if (act === 'close') { openScreen = null; openTask = null; render(); return; }
+  if (act === 'open-picker') { openScreen = 'picker'; pickerFilter = ''; render(); return; }
+  if (act === 'close-picker') { openScreen = null; render(); return; }
+
+  /* ---- first run ---- */
+  if (act === 'gate-connect') {
+    var u = val('gUrl'), tk = val('gToken');
+    if (!u || !tk) { toast('Both fields are needed', true); return; }
+    setCfg({ url: u, token: tk });
+    boot(true);
+    return;
+  }
+
+  /* ---- capture ---- */
+  if (act === 'quick-save') {
+    var text = val('quickInput');
+    if (!text) { toast('Type something first', true); return; }
+    var p = parseQuick(text);
+    if (!p.title) { toast('That needs a title too', true); return; }
+    var newId = uuid();
+    enqueue('upsertTask', {
+      id: newId, title: p.title, deadline: p.deadline,
+      estimate_min: p.estimate_min, tags: p.tags.join(',')
+    });
+    p.needs.forEach(function (label) {
+      enqueue('upsertNeed', { id: uuid(), task_id: newId, label: label });
+    });
+    openScreen = null;
+    toast('Saved');
+    render();
+    return;
+  }
+
+  /* ---- completion ---- */
+  if (act === 'toggle') {
+    var ctx = buildContext();
+    var t = ctx.byId[String(id)];
+    if (!t) return;
+    if (isDone(t)) enqueue('reopenTask', { id: t.id });
+    else {
+      var payload = { id: t.id };
+      if (parseInt(t.recur_days, 10) > 0) payload.next_id = uuid();
+      enqueue('completeTask', payload);
+      var pending = openNeeds(t, ctx).length;
+      var blockers = openPrereqs(t, ctx).length;
+      if (blockers) toast('Done, though ' + plural(blockers, 'prerequisite') + ' was still open');
+      else if (pending) toast('Done, though ' + plural(pending, 'thing') + ' was still needed');
+      else toast('Done');
+    }
+    return;
+  }
+
+  /* ---- task edits ---- */
+  if (act === 'save-task') {
+    var t2 = currentTask();
+    if (!t2) return;
+    var mins = readMins(val('fEstimate'));
+    enqueue('upsertTask', {
+      id: t2.id,
+      title: val('fTitle') || t2.title,
+      deadline: val('fDeadline'),
+      estimate_min: val('fEstimate') === '' ? '' : (mins || ''),
+      tags: val('fTags').toLowerCase(),
+      recur_days: val('fRecur')
+    });
+    toast('Saved');
+    return;
+  }
+
+  if (act === 'save-actual') {
+    var t3 = currentTask();
+    if (!t3) return;
+    var a = readMins(val('fActual'));
+    enqueue('upsertTask', { id: t3.id, actual_min: a || '' });
+    toast('Time recorded');
+    return;
+  }
+
+  if (act === 'delete-task') {
+    var t4 = currentTask();
+    if (!t4) return;
+    var ctx2 = buildContext();
+    var kids = (ctx2.childrenBy[String(t4.id)] || []).length;
+    var dependents = ctx2.tasks.filter(function (o) {
+      return splitIds(o.blocked_by).indexOf(String(t4.id)) !== -1;
+    }).length;
+    var extra = [];
+    if (kids) extra.push(plural(kids, 'subtask') + ' will lose its parent');
+    if (dependents) extra.push(plural(dependents, 'task') + ' will stop waiting on it');
+    if (!confirm('Delete “' + t4.title + '” and its notes and needs?' +
+      (extra.length ? '\n\n' + extra.join('\n') : ''))) return;
+    enqueue('deleteTask', { id: t4.id });
+    openTask = null;
+    toast('Deleted');
+    return;
+  }
+
+  if (act === 'add-subtask') {
+    var t5 = currentTask();
+    if (!t5) return;
+    var name = prompt('Subtask of “' + t5.title + '”');
+    if (!name || !name.trim()) return;
+    var p2 = parseQuick(name.trim());
+    enqueue('upsertTask', {
+      id: uuid(), title: p2.title || name.trim(), parent_id: t5.id,
+      deadline: p2.deadline, estimate_min: p2.estimate_min, tags: p2.tags.join(',')
+    });
+    return;
+  }
+
+  /* ---- dependencies ---- */
+  if (act === 'add-dep') {
+    var ctx3 = buildContext();
+    var t6 = ctx3.byId[String(openTask)];
+    if (!t6) return;
+    if (wouldCycle(t6.id, id, ctx3)) {
+      var other = ctx3.byId[String(id)];
+      toast('“' + (other ? other.title : 'That task') + '” already waits on this one, ' +
+        'so neither could ever start', true);
+      return;
+    }
+    var deps = splitIds(t6.blocked_by);
+    deps.push(String(id));
+    enqueue('upsertTask', { id: t6.id, blocked_by: deps.join(',') });
+    openScreen = null;
+    render();
+    return;
+  }
+
+  if (act === 'rm-dep') {
+    var t7 = currentTask();
+    if (!t7) return;
+    enqueue('upsertTask', {
+      id: t7.id,
+      blocked_by: splitIds(t7.blocked_by).filter(function (x) { return x !== String(id); }).join(',')
+    });
+    return;
+  }
+
+  /* ---- needs ---- */
+  if (act === 'add-need') {
+    var t8 = currentTask();
+    if (!t8) return;
+    var label = val('fNeed');
+    if (!label) { toast('What is it you need?', true); return; }
+    enqueue('upsertNeed', { id: uuid(), task_id: t8.id, label: label });
+    return;
+  }
+
+  if (act === 'need-toggle' || act === 'need-done') {
+    var st = viewState();
+    var need = null;
+    st.needs.forEach(function (n) { if (String(n.id) === String(id)) need = n; });
+    if (!need) return;
+    var got = need.resolved === true || need.resolved === 'TRUE';
+    enqueue('upsertNeed', { id: id, resolved: !got });
+    if (!got) toast('Got it');
+    return;
+  }
+
+  if (act === 'need-del') { enqueue('deleteNeed', { id: id }); return; }
+
+  /* ---- notes and timer ---- */
+  if (act === 'add-note') {
+    var t9 = currentTask();
+    if (!t9) return;
+    var body = document.getElementById('fNote') ? document.getElementById('fNote').value.trim() : '';
+    if (!body) { toast('Nothing to add', true); return; }
+    enqueue('addNote', { id: uuid(), task_id: t9.id, body: body });
+    toast('Note added');
+    return;
+  }
+
+  if (act === 'timer') {
+    var t10 = currentTask();
+    if (!t10) return;
+    var timer = jget(K.timer, null);
+    if (timer && String(timer.taskId) === String(t10.id)) {
+      var mins = Math.max(1, Math.round((Date.now() - timer.startedAt) / 60000));
+      rawSet(K.timer, JSON.stringify(null));
+      var already = Number(t10.actual_min) || 0;
+      enqueue('upsertTask', { id: t10.id, actual_min: already + mins });
+      enqueue('addNote', { id: uuid(), task_id: t10.id, body: 'Worked ' + niceMins(mins) + '.' });
+      toast('Added ' + niceMins(mins));
+    } else {
+      jset(K.timer, { taskId: t10.id, startedAt: Date.now() });
+      toast('Timer running');
+      render();
+    }
+    return;
+  }
+
+  /* ---- settings ---- */
+  if (act === 'save-settings') {
+    var hours = parseFloat(val('sCapacity'));
+    var stale = parseInt(val('sStale'), 10);
+    if (!(hours > 0)) { toast('Hours must be more than zero', true); return; }
+    enqueue('setSetting', { key: 'daily_capacity_min', value: String(Math.round(hours * 60)) });
+    if (stale > 0) enqueue('setSetting', { key: 'stale_days', value: String(stale) });
+    toast('Saved');
+    return;
+  }
+
+  if (act === 'save-conn') {
+    setCfg({ url: val('sUrl'), token: val('sToken') });
+    sync(true);
+    return;
+  }
+
+  if (act === 'clear-errors') { jset(K.errors, []); render(); return; }
+});
+
+document.getElementById('fab').addEventListener('click', function () {
+  openScreen = 'compose';
+  openTask = null;
+  render();
+});
+
+document.getElementById('syncBtn').addEventListener('click', function () { sync(true); });
+
+document.getElementById('setBtn').addEventListener('click', function () {
+  openScreen = 'settings';
+  openTask = null;
+  render();
+});
+
+document.addEventListener('input', function (ev) {
+  if (ev.target.id === 'quickInput') {
+    var p = parseQuick(ev.target.value);
+    var out = [];
+    if (p.deadline) out.push('due <b>' + esc(niceDate(p.deadline)) + '</b>');
+    if (p.estimate_min) out.push('<b>' + esc(niceMins(p.estimate_min)) + '</b>');
+    if (p.tags.length) out.push('tagged <b>' + esc(p.tags.join(', ')) + '</b>');
+    if (p.needs.length) out.push('needs <b>' + esc(p.needs.join(', ')) + '</b>');
+    var el = document.getElementById('quickPreview');
+    if (el) {
+      el.innerHTML = out.length
+        ? esc(p.title || '(no title yet)') + ' — ' + out.join(', ')
+        : '';
+    }
+  }
+  if (ev.target.id === 'pickerSearch') {
+    pickerFilter = ev.target.value;
+    var keep = ev.target.value;
+    render();
+    var s = document.getElementById('pickerSearch');
+    if (s) { s.value = keep; s.focus(); s.setSelectionRange(keep.length, keep.length); }
+  }
+});
+
+document.addEventListener('keydown', function (ev) {
+  if (ev.key === 'Enter' && ev.target.id === 'quickInput') {
+    ev.preventDefault();
+    var b = document.querySelector('[data-act="quick-save"]');
+    if (b) b.click();
+  }
+  if (ev.key === 'Escape' && (openScreen || openTask)) {
+    if (openScreen === 'picker') openScreen = null;
+    else { openScreen = null; openTask = null; }
+    render();
+  }
+});
+
+window.addEventListener('online', function () { sync(); });
+
+/* ================================================================
+   boot
+   ================================================================ */
+
+function boot(loud) {
+  if (!getCfg()) { renderSetupGate(); return; }
+  render();
+  sync(loud);
+}
+
+boot(false);
+</script>
+</body>
+</html>
