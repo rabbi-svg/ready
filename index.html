@@ -557,6 +557,38 @@ body.dragging {
 
 .orderbar .iconbtn { flex: 0 0 auto; margin-top: 3px; }
 
+.bignote {
+  min-height: 180px;
+  line-height: 1.5;
+}
+
+.shot { margin: 0 0 10px; position: relative; }
+
+.shotdel {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  background: var(--surface);
+}
+
+.thumb.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 140px;
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.filerow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.filerow .grow { flex: 1; min-width: 0; }
+
 .thumb {
   display: block;
   width: 100%;
@@ -658,8 +690,7 @@ var K = {
   cfg: 'ready.cfg',
   server: 'ready.server',
   outbox: 'ready.outbox',
-  errors: 'ready.errors',
-  timer: 'ready.timer'
+  errors: 'ready.errors'
 };
 
 function getCfg()  { return jget(K.cfg, null); }
@@ -802,7 +833,9 @@ function applyLocal(state, m) {
         actual_min: '', deadline: d.deadline || '', blocked_by: d.blocked_by || '',
         parent_id: d.parent_id || '', tags: d.tags || '', recur_days: d.recur_days || '',
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        completed_at: '', archived: false
+        completed_at: '', archived: false,
+        sort_order: d.sort_order !== undefined ? d.sort_order : '',
+        notes: d.notes || ''
       });
     }
   } else if (m.op === 'completeTask') {
@@ -810,17 +843,6 @@ function applyLocal(state, m) {
     if (i >= 0) {
       state.tasks[i].completed_at = new Date().toISOString();
       if (d.actual_min) state.tasks[i].actual_min = d.actual_min;
-      var recur = parseInt(state.tasks[i].recur_days, 10);
-      if (recur > 0 && d.next_id) {
-        var src = state.tasks[i];
-        state.tasks.push({
-          id: d.next_id, title: src.title, estimate_min: src.estimate_min,
-          actual_min: '', deadline: shiftDay(today(), recur), blocked_by: src.blocked_by,
-          parent_id: src.parent_id, tags: src.tags, recur_days: src.recur_days,
-          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-          completed_at: '', archived: false
-        });
-      }
     }
   } else if (m.op === 'reopenTask') {
     i = taskIndex(d.id);
@@ -886,35 +908,17 @@ function buildContext() {
     tasks: s.tasks.filter(function (t) { return t.archived !== true && t.archived !== 'TRUE'; }),
     settings: s.settings,
     defaultEst: Math.max(1, parseInt(s.settings.default_estimate_min, 10) || 30),
-    staleDays: Math.max(1, parseInt(s.settings.stale_days, 10) || 7),
-    byId: {}, needsBy: {}, notesBy: {}, attachBy: {}, dependentsBy: {}
+    byId: {}, needsBy: {}, attachBy: {}
   };
 
   ctx.tasks.forEach(function (t) { ctx.byId[String(t.id)] = t; });
   s.needs.forEach(function (n) {
     (ctx.needsBy[String(n.task_id)] = ctx.needsBy[String(n.task_id)] || []).push(n);
   });
-  s.notes.forEach(function (n) {
-    (ctx.notesBy[String(n.task_id)] = ctx.notesBy[String(n.task_id)] || []).push(n);
-  });
   s.attachments.forEach(function (a) {
     (ctx.attachBy[String(a.task_id)] = ctx.attachBy[String(a.task_id)] || []).push(a);
   });
-  Object.keys(ctx.notesBy).forEach(function (k) {
-    ctx.notesBy[k].sort(function (a, b) {
-      return String(b.created_at).localeCompare(String(a.created_at));
-    });
-  });
 
-  // Which tasks are waiting on this one. Deadline pressure travels along
-  // these edges, backwards from the task that has the date.
-  ctx.tasks.forEach(function (t) {
-    splitIds(t.blocked_by).forEach(function (dep) {
-      if (ctx.byId[dep]) (ctx.dependentsBy[dep] = ctx.dependentsBy[dep] || []).push(t);
-    });
-  });
-
-  ctx.deadlineMemo = {};
   contextCache = ctx;
   return ctx;
 }
@@ -927,76 +931,29 @@ function openNeeds(t, ctx) {
   });
 }
 
-function openPrereqs(t, ctx) {
-  return splitIds(t.blocked_by)
-    .map(function (id) { return ctx.byId[id]; })
-    .filter(function (p) { return p && !isDone(p); });
-}
-
 function statusOf(t, ctx) {
   if (isDone(t)) return 'done';
-  if (openPrereqs(t, ctx).length) return 'blocked';
   if (openNeeds(t, ctx).length) return 'waiting';
   return 'ready';
 }
 
-// A task's real deadline is its own, or the earliest deadline of anything
-// waiting on it. Sanding the door has no date of its own, but painting does,
-// and painting cannot start until sanding is finished — so sanding inherits
-// it. `from` records which task lent the date, so the list can say why.
-function effDeadline(t, ctx, seen) {
-  if (!t) return { date: '', from: null };
-  var id = String(t.id);
-  var top = !seen;
-
-  if (top && ctx.deadlineMemo[id]) return ctx.deadlineMemo[id];
-
-  seen = seen || {};
-  if (seen[id]) return { date: t.deadline || '', from: null };  // cycle guard
-
-  var mine = {};
-  Object.keys(seen).forEach(function (k) { mine[k] = true; });
-  mine[id] = true;
-
-  var best = t.deadline ? { date: t.deadline, from: null } : null;
-
-  (ctx.dependentsBy[id] || []).forEach(function (dep) {
-    if (isDone(dep)) return;
-    var theirs = effDeadline(dep, ctx, mine);
-    if (theirs.date && (!best || theirs.date < best.date)) {
-      best = { date: theirs.date, from: dep };
-    }
-  });
-
-  var out = best || { date: '', from: null };
-  if (top) ctx.deadlineMemo[id] = out;
-  return out;
-}
-
 function decorate(t, ctx) {
   var status = statusOf(t, ctx);
-  var eff = effDeadline(t, ctx);
   var risk = 'ok';
 
-  if (status !== 'done' && eff.date) {
-    var gap = dayGap(ctx.today, eff.date);
+  if (status !== 'done' && t.deadline) {
+    var gap = dayGap(ctx.today, t.deadline);
     if (gap < 0) risk = 'late';
     else if (gap === 0) risk = 'today';
     else if (gap <= 2) risk = 'soon';
   }
 
-  var notes = ctx.notesBy[String(t.id)] || [];
-  var lastTouch = notes.length ? notes[0].created_at : t.created_at;
-
   return {
     task: t, status: status,
-    deadline: eff.date, deadlineFrom: eff.from,
+    deadline: t.deadline || '',
     risk: risk,
-    prereqs: openPrereqs(t, ctx), needs: openNeeds(t, ctx),
-    noteCount: notes.length,
-    fileCount: (ctx.attachBy[String(t.id)] || []).length,
-    stale: status === 'ready' && !!eff.date && ageInDays(lastTouch) >= ctx.staleDays,
-    lastTouch: lastTouch
+    needs: openNeeds(t, ctx),
+    fileCount: (ctx.attachBy[String(t.id)] || []).length
   };
 }
 
@@ -1018,13 +975,6 @@ function urgencyCompare(a, b) {
     if (!b.deadline) return -1;
     return String(a.deadline).localeCompare(String(b.deadline));
   }
-
-  // Same deadline and one waits on the other: the prerequisite goes first,
-  // so a chain reads top to bottom in the order you would actually do it.
-  var aWaitsOnB = splitIds(a.task.blocked_by).indexOf(String(b.task.id)) !== -1;
-  var bWaitsOnA = splitIds(b.task.blocked_by).indexOf(String(a.task.id)) !== -1;
-  if (aWaitsOnB && !bWaitsOnA) return 1;
-  if (bWaitsOnA && !aWaitsOnB) return -1;
 
   var ea = Number(a.task.estimate_min) || 1e9;
   var eb = Number(b.task.estimate_min) || 1e9;
@@ -1056,32 +1006,6 @@ function riskSentence(d) {
   if (gap === 1) return 'Due tomorrow';
   if (gap <= 2) return 'Due in ' + plural(gap, 'day');
   return '';
-}
-
-// Would making `depId` a prerequisite of `taskId` close a loop?
-function wouldCycle(taskId, depId, ctx) {
-  var stack = [String(depId)], seen = {};
-  while (stack.length) {
-    var cur = stack.pop();
-    if (cur === String(taskId)) return true;
-    if (seen[cur]) continue;
-    seen[cur] = true;
-    var t = ctx.byId[cur];
-    if (t) splitIds(t.blocked_by).forEach(function (x) { stack.push(x); });
-  }
-  return false;
-}
-
-function findCycles(ctx) {
-  var bad = [];
-  ctx.tasks.forEach(function (t) {
-    splitIds(t.blocked_by).forEach(function (dep) {
-      if (ctx.byId[dep] && wouldCycle(t.id, dep, ctx)) {
-        bad.push(t.title + '  <->  ' + ctx.byId[dep].title);
-      }
-    });
-  });
-  return bad;
 }
 
 /* ================================================================
@@ -1172,9 +1096,8 @@ function readMins(token) {
    ================================================================ */
 
 var uploading = false;
-var attachRole = 'reference';
-var previewCache = {};   // attachment id -> data URL, this session only
-var previewOpen = {};
+var previewCache = {};    // attachment id -> data URL, this session only
+var previewLoading = {};
 
 function postDirect(extra) {
   var cfg = getCfg();
@@ -1287,7 +1210,7 @@ function uploadFile(file) {
           op: 'addAttachment',
           data: {
             id: uuid(), task_id: taskId, filename: p.filename,
-            mime: p.mime, role: attachRole, base64: p.base64
+            mime: p.mime, role: 'reference', base64: p.base64
           }
         }]
       });
@@ -1307,21 +1230,21 @@ function uploadFile(file) {
     });
 }
 
-function viewAttachment(id) {
-  if (previewCache[id]) { previewOpen[id] = !previewOpen[id]; render(); return; }
-
-  previewOpen[id] = true;
-  render();
+// Photos load themselves when a task is opened, so a picture is just
+// sitting there rather than waiting behind a tap.
+function loadPreview(id) {
+  if (previewCache[id] || previewLoading[id]) return;
+  previewLoading[id] = true;
 
   postDirect({ get_attachment: id })
     .then(function (res) {
       previewCache[id] = 'data:' + res.mime + ';base64,' + res.base64;
-      render();
+      previewLoading[id] = false;
+      renderSheet();
     })
     .catch(function (err) {
-      previewOpen[id] = false;
+      previewLoading[id] = false;
       toast(err.message || String(err), true);
-      render();
     });
 }
 
@@ -1330,53 +1253,41 @@ function attachmentSection(t, ctx) {
 
   var rows = files.map(function (a) {
     var isImage = /^image\//.test(a.mime || '');
-    var open = previewOpen[a.id];
-    var cached = previewCache[a.id];
 
-    var body = '';
-    if (open) {
-      if (!cached) body = '<p class="empty" style="padding:8px 0">Loading…</p>';
-      else if (isImage) body = '<img class="thumb" src="' + cached + '" alt="' + esc(a.filename) + '">';
-      else body = '<a class="btn wide" style="display:block;text-align:center;text-decoration:none" ' +
-        'href="' + cached + '" download="' + esc(a.filename) + '">Download ' + esc(a.filename) + '</a>';
+    if (isImage) {
+      if (!previewCache[a.id]) loadPreview(a.id);
+      return '<figure class="shot">' +
+        (previewCache[a.id]
+          ? '<img class="thumb" src="' + previewCache[a.id] + '" alt="' + esc(a.filename) + '">'
+          : '<div class="thumb loading">Loading\u2026</div>') +
+        '<button class="chip shotdel" data-act="file-del" data-id="' + esc(a.id) + '">' +
+          'Remove</button>' +
+      '</figure>';
     }
 
-    return '<li style="display:block">' +
-      '<div style="display:flex;align-items:center;gap:10px">' +
-        '<button class="check" data-act="file-view" data-id="' + esc(a.id) + '" ' +
-          'title="' + (open ? 'Hide' : 'View') + '">' + (isImage ? '&#9635;' : '&#9679;') + '</button>' +
-        '<span class="grow">' + esc(a.filename) +
-          '<br><span class="age">' + esc(a.role) + '</span></span>' +
-        '<button class="chip" data-act="file-del" data-id="' + esc(a.id) + '">Remove</button>' +
-      '</div>' +
-      (body ? '<div style="margin-top:10px">' + body + '</div>' : '') +
-    '</li>';
+    return '<div class="filerow">' +
+      (previewCache[a.id]
+        ? '<a class="btn grow" style="text-decoration:none;text-align:center" href="' +
+            previewCache[a.id] + '" download="' + esc(a.filename) + '">' +
+            esc(a.filename) + '</a>'
+        : '<button class="btn grow" data-act="file-load" data-id="' + esc(a.id) + '">' +
+            esc(a.filename) + '</button>') +
+      '<button class="chip" data-act="file-del" data-id="' + esc(a.id) + '">Remove</button>' +
+    '</div>';
   }).join('');
 
   return '<section class="block"><h3>Photos and files</h3>' +
-    (files.length
-      ? '<ul class="plain">' + rows + '</ul>'
-      : '<p class="empty" style="padding:0 0 8px">Nothing attached.</p>') +
+    rows +
     (uploading
       ? '<p class="empty" style="padding:10px 0">Uploading. Large photos take a few seconds.</p>'
-      : '<div class="row" style="margin-top:10px">' +
+      : '<div class="row" style="margin-top:' + (files.length ? '10' : '0') + 'px">' +
           '<label class="btn" style="text-align:center;line-height:44px">Take photo' +
             '<input type="file" accept="image/*" capture="environment" data-upload="1" hidden>' +
           '</label>' +
           '<label class="btn" style="text-align:center;line-height:44px">Choose file' +
             '<input type="file" data-upload="1" hidden>' +
           '</label>' +
-        '</div>' +
-        '<label class="field" style="margin-top:10px"><span>Attach as</span>' +
-          '<select id="fRole">' +
-            ['reference', 'input', 'proof', 'other'].map(function (r) {
-              return '<option value="' + r + '"' + (attachRole === r ? ' selected' : '') + '>' +
-                ({ reference: 'Reference — something to look at',
-                   input: 'Input — something needed to do the work',
-                   proof: 'Proof — evidence it is done',
-                   other: 'Other' })[r] + '</option>';
-            }).join('') +
-          '</select></label>') +
+        '</div>') +
   '</section>';
 }
 
@@ -1562,8 +1473,7 @@ document.addEventListener('pointercancel', endDrag);
    ================================================================ */
 
 var openTask = null;
-var openScreen = null;   // 'compose' | 'settings' | 'picker'
-var pickerFilter = '';
+var openScreen = null;   // 'compose' | 'settings'
 
 var TABS = [
   { id: 'all', label: 'All' },
@@ -1597,22 +1507,12 @@ function card(d, opts) {
     bits.push('<time>due ' + esc(niceDate(d.deadline)) + '</time>');
   }
   if (t.estimate_min) bits.push('<span>' + esc(niceMins(t.estimate_min)) + '</span>');
-  if (d.deadlineFrom) {
-    bits.push('<span>needed for ' + esc(d.deadlineFrom.title) + '</span>');
-  }
-  if (d.noteCount) bits.push('<span>' + plural(d.noteCount, 'note') + '</span>');
   if (d.fileCount) bits.push('<span>' + plural(d.fileCount, 'file') + '</span>');
-  if (d.stale) bits.push('<span>untouched ' + plural(ageInDays(d.lastTouch), 'day') + '</span>');
   if (opts.extra) bits.push('<span>' + esc(opts.extra) + '</span>');
 
-  // Blocked and waiting tasks stay in the list. They are marked, not hidden:
-  // it is your list, and you should be able to see all of it.
+  // Waiting tasks stay in the list, marked rather than hidden.
   var gate = '';
-  if (d.status === 'blocked') {
-    gate = '<p class="gate">after ' + esc(d.prereqs.map(function (p) { return p.title; })
-      .slice(0, 2).join(', ')) +
-      (d.prereqs.length > 2 ? ' and ' + plural(d.prereqs.length - 2, 'other') : '') + '</p>';
-  } else if (d.status === 'waiting') {
+  if (d.status === 'waiting') {
     gate = '<p class="gate">waiting on ' + esc(d.needs.map(function (n) { return n.label; })
       .slice(0, 2).join(', ')) +
       (d.needs.length > 2 ? ' and ' + plural(d.needs.length - 2, 'other') : '') + '</p>';
@@ -1621,7 +1521,7 @@ function card(d, opts) {
   return '' +
     '<article class="card' +
         (d.status === 'done' ? ' done' : '') +
-        (d.status === 'blocked' || d.status === 'waiting' ? ' gated' : '') +
+        (d.status === 'waiting' ? ' gated' : '') +
       '" data-risk="' + d.risk + '" data-card="' + esc(t.id) + '">' +
       '<span class="edge"></span>' +
       '<button class="body" data-act="open" data-id="' + esc(t.id) + '">' +
@@ -1788,13 +1688,7 @@ function viewDone(done, ctx) {
   }
 
   return '<p class="lede quiet">' + plural(recent.length, 'thing') + ' done this month.</p>' +
-    recent.map(function (d) {
-      var extra = '';
-      var est = Number(d.task.estimate_min), act = Number(d.task.actual_min);
-      if (est && act) extra = 'guessed ' + niceMins(est) + ', took ' + niceMins(act);
-      else if (act) extra = 'took ' + niceMins(act);
-      return card(d, { extra: extra });
-    }).join('');
+    recent.map(function (d) { return card(d, {}); }).join('');
 }
 
 /* ---------------- sheets ---------------- */
@@ -1815,7 +1709,6 @@ function renderSheet() {
   var html = '';
   if (openScreen === 'compose') html = sheetCompose();
   else if (openScreen === 'settings') html = sheetSettings(ctx);
-  else if (openScreen === 'picker') html = sheetPicker(ctx);
   else html = sheetTask(ctx);
 
   if (existing) {
@@ -1858,88 +1751,10 @@ function sheetCompose() {
       '<label class="field"><span>How long will it take?</span>' +
         '<input type="text" id="cEstimate" placeholder="2h"></label>' +
     '</div>' +
-    '<p class="empty" style="padding:0">Both optional. If something else is ' +
-      'waiting on this task, it picks up that deadline on its own.</p>';
-}
-
-// Shows and hides what is already on screen. No innerHTML, no focus
-// juggling, no cursor jumping.
-function filterPicker() {
-  var sheet = document.querySelector('.sheet');
-  if (!sheet) return;
-
-  var typed = pickerFilter.trim().toLowerCase();
-  var shown = 0;
-  var exact = false;
-
-  Array.prototype.slice.call(sheet.querySelectorAll('[data-pick]')).forEach(function (el) {
-    var title = (el.getAttribute('data-pick') || '').toLowerCase();
-    var hit = !typed || title.indexOf(typed) !== -1;
-    el.hidden = !hit;
-    if (hit) shown++;
-    if (title === typed) exact = true;
-  });
-
-  var creator = sheet.querySelector('[data-createrow]');
-  if (creator) creator.hidden = !typed || exact;
-
-  var orLabel = sheet.querySelector('[data-orlabel]');
-  if (orLabel) orLabel.hidden = !typed || exact || !shown;
-
-  var none = sheet.querySelector('[data-nomatch]');
-  if (none) none.hidden = !(typed && !shown && !exact);
-
-  var hint = sheet.querySelector('[data-pickhint]');
-  if (hint) hint.hidden = !!typed;
-}
-
-function sheetPicker(ctx) {
-  var t = ctx.byId[String(openTask)];
-  if (!t) return '';
-  var current = splitIds(t.blocked_by);
-  var inherited = effDeadline(t, ctx).date;
-
-  // Everything renderable goes in once. filterPicker() shows and hides.
-  var options = ctx.tasks.filter(function (o) {
-    if (String(o.id) === String(t.id)) return false;
-    if (isDone(o)) return false;
-    if (current.indexOf(String(o.id)) !== -1) return false;
-    return true;
-  }).slice(0, 60);
-
-  return '' +
-    '<header><h2>Before &ldquo;' + esc(t.title) + '&rdquo;</h2>' +
-      '<button class="btn primary" data-act="close-picker">Done</button></header>' +
-
-    '<label class="field"><span>What has to happen first?</span>' +
-      '<input type="text" id="pickerSearch" data-autofocus autocomplete="off" ' +
-        'placeholder="Strip the old paint"></label>' +
-
-    '<div data-createrow hidden>' +
-      '<div class="row" style="margin-bottom:10px">' +
-        '<input type="text" id="pickerEst" placeholder="how long? 2h" autocomplete="off">' +
-        '<button class="btn primary" data-act="create-dep" style="flex:0 0 auto">Add it</button>' +
-      '</div>' +
-      '<p class="empty" style="padding:0 0 18px">A new task that has to finish before ' +
-        'this one can start' +
-        (inherited ? ', due ' + esc(niceDate(inherited)) + ' like its parent.' : '.') +
-      '</p>' +
-    '</div>' +
-
-    '<p class="empty" data-pickhint style="padding:0 0 12px">Type it and tap Add it. ' +
-      'Add as many as you like, one after another.</p>' +
-
-    '<p class="group" data-orlabel hidden>Or something you already have</p>' +
-
-    options.map(function (o) {
-      return '<button class="pick" data-act="add-dep" data-id="' + esc(o.id) + '" ' +
-        'data-pick="' + esc(o.title) + '">' + esc(o.title) +
-        (o.deadline ? '<br><span class="age">due ' + esc(niceDate(o.deadline)) + '</span>' : '') +
-        '</button>';
-    }).join('') +
-
-    '<p class="empty" data-nomatch hidden>Nothing existing matches. Tap Add it above to ' +
-      'make it a new task.</p>';
+    '<label class="field"><span>Notes</span>' +
+      '<textarea id="cNotes" class="bignote" placeholder="Anything worth knowing: ' +
+        'what is involved, what has to happen first, where you left off."></textarea></label>' +
+    '<p class="empty" style="padding:0">Only the title is required.</p>';
 }
 
 function sheetTask(ctx) {
@@ -1948,36 +1763,9 @@ function sheetTask(ctx) {
 
   var d = decorate(t, ctx);
   var needs = (ctx.needsBy[String(t.id)] || []);
-  var notes = (ctx.notesBy[String(t.id)] || []);
-  var timer = jget(K.timer, null);
-  var running = timer && String(timer.taskId) === String(t.id);
-
-  var statusWord = { ready: 'Ready to start', blocked: 'Blocked', waiting: 'Waiting on something', done: 'Done' }[d.status];
-
-  var derived = '<p><span class="stat">' + esc(statusWord) + '</span></p>';
-  if (d.status !== 'done') {
-    if (d.deadlineFrom) {
-      derived += '<p>No deadline of its own, but <span class="stat">' +
-        esc(d.deadlineFrom.title) + '</span> is waiting on it and is due ' +
-        '<span class="stat">' + esc(niceDate(d.deadline)) + '</span></p>';
-    } else if (d.deadline) {
-      derived += '<p>Due <span class="stat">' + esc(niceDate(d.deadline)) + '</span></p>';
-    } else {
-      derived += '<p>No deadline, and nothing waiting on it</p>';
-    }
-    var s = riskSentence(d);
-    if (s) derived += '<p><span class="stat">' + esc(s) + '</span></p>';
-    if (d.prereqs.length) {
-      derived += '<p>Cannot start until ' + esc(plural(d.prereqs.length, 'task')) +
-        ' ahead of it is finished</p>';
-    }
-  } else if (t.actual_min) {
-    derived += '<p>Took <span class="stat">' + esc(niceMins(t.actual_min)) + '</span>' +
-      (t.estimate_min ? ', guessed ' + esc(niceMins(t.estimate_min)) : '') + '</p>';
-  }
 
   return '' +
-    '<header><h2>' + (d.status === 'done' ? 'Finished task' : 'Task') + '</h2>' +
+    '<header><h2>' + (d.status === 'done' ? 'Finished' : 'Task') + '</h2>' +
       '<button class="btn" data-act="close">Close</button></header>' +
 
     '<label class="field"><span>Title</span>' +
@@ -1992,25 +1780,12 @@ function sheetTask(ctx) {
           esc(t.estimate_min ? niceMins(t.estimate_min) : '') + '"></label>' +
     '</div>' +
 
-    '<label class="field"><span>Repeat every … days (leave empty for a one-off)</span>' +
-      '<input type="number" id="fRecur" data-save="recur_days" min="1" value="' +
-        esc(t.recur_days || '') + '"></label>' +
+    '<label class="field"><span>Notes</span>' +
+      '<textarea id="fNotes" class="bignote" data-save="notes" ' +
+        'placeholder="Anything worth knowing: what is involved, what has to happen ' +
+        'first, where you left off.">' + esc(t.notes || '') + '</textarea></label>' +
 
-    '<section class="block"><h3>What the app works out</h3>' +
-      '<div class="derived">' + derived + '</div></section>' +
-
-    '<section class="block"><h3>Blocked by</h3>' +
-      (splitIds(t.blocked_by).length
-        ? '<div class="chips">' + splitIds(t.blocked_by).map(function (id) {
-            var p = ctx.byId[id];
-            return '<span class="chip">' +
-              (p ? esc(p.title) + (isDone(p) ? ' (done)' : '') : 'missing task') +
-              '<button data-act="rm-dep" data-id="' + esc(id) + '" title="Remove">&times;</button>' +
-            '</span>';
-          }).join('') + '</div>'
-        : '<p class="empty" style="padding:0 0 8px">Nothing has to happen first yet.</p>') +
-      '<button class="btn wide" data-act="open-picker" style="margin-top:10px">Add something that comes first</button>' +
-    '</section>' +
+    attachmentSection(t, ctx) +
 
     '<section class="block"><h3>Still needed</h3>' +
       (needs.length
@@ -2030,28 +1805,6 @@ function sheetTask(ctx) {
       '</div>' +
     '</section>' +
 
-    attachmentSection(t, ctx) +
-
-    '<section class="block"><h3>Time</h3>' +
-      '<div class="row">' +
-        '<button class="btn" data-act="timer">' +
-          (running ? 'Stop timer (' + niceMins(Math.max(1, Math.round((Date.now() - timer.startedAt) / 60000))) + ')' : 'Start timer') +
-        '</button>' +
-        '<input type="text" id="fActual" placeholder="or type it: 45m" value="' +
-          esc(t.actual_min ? niceMins(t.actual_min) : '') + '">' +
-        '<button class="btn" data-act="save-actual" style="flex:0 0 auto">Set</button>' +
-      '</div>' +
-    '</section>' +
-
-    '<section class="block"><h3>Notes</h3>' +
-      '<textarea id="fNote" placeholder="What happened, what you found, where you left off"></textarea>' +
-      '<button class="btn wide" data-act="add-note" style="margin-top:8px">Add note</button>' +
-      (notes.length ? '<ul class="log" style="margin-top:16px">' + notes.map(function (n) {
-        return '<li><time>' + esc(niceDate(ymd(new Date(n.created_at)))) + '</time>' +
-          esc(n.body) + '</li>';
-      }).join('') + '</ul>' : '') +
-    '</section>' +
-
     '<section class="block">' +
       '<button class="btn primary wide" data-act="toggle" data-id="' + esc(t.id) + '">' +
         (d.status === 'done' ? 'Reopen' : 'Mark done') + '</button>' +
@@ -2061,18 +1814,12 @@ function sheetTask(ctx) {
 
 function sheetSettings(ctx) {
   var cfg = getCfg() || {};
-  var cycles = findCycles(ctx);
+  var cfg = getCfg() || {};
   var errors = getErrors();
   var box = getOutbox();
 
   return '' +
     '<header><h2>Setup</h2><button class="btn" data-act="close">Close</button></header>' +
-
-    '<section class="block"><h3>Nudges</h3>' +
-      '<label class="field"><span>Flag a task untouched for … days</span>' +
-        '<input type="number" id="sStale" min="1" max="90" value="' + ctx.staleDays + '"></label>' +
-      '<button class="btn primary wide" data-act="save-settings">Save</button>' +
-    '</section>' +
 
     '<section class="block"><h3>Connection</h3>' +
       '<label class="field"><span>Web app URL</span>' +
@@ -2082,14 +1829,6 @@ function sheetSettings(ctx) {
       '<button class="btn wide" data-act="save-conn">Save and test</button>' +
       '<p class="empty" style="padding:10px 0 0">Stored on this device only.' +
         (box.length ? ' ' + plural(box.length, 'change') + ' still waiting to send.' : '') + '</p>' +
-    '</section>' +
-
-    '<section class="block"><h3>Health</h3>' +
-      (cycles.length
-        ? '<div class="warn">These tasks each wait on the other, so neither can ever ' +
-          'start. Open one and remove a prerequisite.<br><br>' +
-          cycles.map(function (c) { return esc(c); }).join('<br>') + '</div>'
-        : '<p class="empty" style="padding:0">No circular dependencies.</p>') +
     '</section>' +
 
     '<section class="block"><h3>This app</h3>' +
@@ -2152,63 +1891,6 @@ document.addEventListener('click', function (ev) {
   if (act === 'tab') { tab = btn.getAttribute('data-tab'); render(); return; }
   if (act === 'open') { openTask = id; openScreen = null; render(); return; }
   if (act === 'close') { openScreen = null; openTask = null; render(); return; }
-  if (act === 'create-dep') {
-    var ctxC = buildContext();
-    var host = ctxC.byId[String(openTask)];
-    if (!host) return;
-
-    // Read both fields before enqueueing: the first write re-renders the
-    // sheet and the inputs go with it.
-    var newTitle = val('pickerSearch');
-    var newEst = readMins(val('pickerEst'));
-    if (!newTitle) { toast('Type what needs doing first', true); return; }
-
-    var madeId = uuid();
-    enqueue('upsertTask', { id: madeId, title: newTitle, estimate_min: newEst || '' });
-
-    var deps0 = splitIds(host.blocked_by);
-    deps0.push(madeId);
-    enqueue('upsertTask', { id: host.id, blocked_by: deps0.join(',') });
-
-    pickerFilter = '';
-    toast('Added before \u201c' + host.title + '\u201d');
-    render();
-    return;
-  }
-
-  if (act === 'open-picker') {
-    openScreen = 'picker';
-    pickerFilter = '';
-    render();
-    return;
-  }
-  if (act === 'close-picker') { openScreen = null; render(); return; }
-
-  /* ---- first run ---- */
-  if (act === 'gate-connect') {
-    var u = val('gUrl'), tk = val('gToken');
-    if (!u || !tk) { toast('Both fields are needed', true); return; }
-    setCfg({ url: u, token: tk });
-    boot(true);
-    return;
-  }
-
-  /* ---- capture ---- */
-  if (act === 'quick-save') {
-    var title = val('cTitle');
-    if (!title) { toast('Give it a name first', true); return; }
-    enqueue('upsertTask', {
-      id: uuid(),
-      title: title,
-      deadline: val('cDeadline'),
-      estimate_min: readMins(val('cEstimate')) || ''
-    });
-    openScreen = null;
-    toast('Saved');
-    render();
-    return;
-  }
-
   /* ---- completion ---- */
   if (act === 'toggle') {
     var ctx = buildContext();
@@ -2216,28 +1898,15 @@ document.addEventListener('click', function (ev) {
     if (!t) return;
     if (isDone(t)) enqueue('reopenTask', { id: t.id });
     else {
-      var payload = { id: t.id };
-      if (parseInt(t.recur_days, 10) > 0) payload.next_id = uuid();
-      enqueue('completeTask', payload);
+      enqueue('completeTask', { id: t.id });
       var pending = openNeeds(t, ctx).length;
-      var blockers = openPrereqs(t, ctx).length;
-      if (blockers) toast('Done, though ' + plural(blockers, 'prerequisite') + ' was still open');
-      else if (pending) toast('Done, though ' + plural(pending, 'thing') + ' was still needed');
+      if (pending) toast('Done, though ' + plural(pending, 'thing') + ' was still needed');
       else toast('Done');
     }
     return;
   }
 
   /* ---- task edits ---- */
-  if (act === 'save-actual') {
-    var t3 = currentTask();
-    if (!t3) return;
-    var a = readMins(val('fActual'));
-    enqueue('upsertTask', { id: t3.id, actual_min: a || '' });
-    toast('Time recorded');
-    return;
-  }
-
   if (act === 'delete-task') {
     var t4 = currentTask();
     if (!t4) return;
@@ -2252,35 +1921,6 @@ document.addEventListener('click', function (ev) {
     enqueue('deleteTask', { id: t4.id });
     openTask = null;
     toast('Deleted');
-    return;
-  }
-
-  /* ---- dependencies ---- */
-  if (act === 'add-dep') {
-    var ctx3 = buildContext();
-    var t6 = ctx3.byId[String(openTask)];
-    if (!t6) return;
-    if (wouldCycle(t6.id, id, ctx3)) {
-      var other = ctx3.byId[String(id)];
-      toast('“' + (other ? other.title : 'That task') + '” already waits on this one, ' +
-        'so neither could ever start', true);
-      return;
-    }
-    var deps = splitIds(t6.blocked_by);
-    deps.push(String(id));
-    enqueue('upsertTask', { id: t6.id, blocked_by: deps.join(',') });
-    openScreen = null;
-    render();
-    return;
-  }
-
-  if (act === 'rm-dep') {
-    var t7 = currentTask();
-    if (!t7) return;
-    enqueue('upsertTask', {
-      id: t7.id,
-      blocked_by: splitIds(t7.blocked_by).filter(function (x) { return x !== String(id); }).join(',')
-    });
     return;
   }
 
@@ -2307,56 +1947,18 @@ document.addEventListener('click', function (ev) {
 
   if (act === 'need-del') { enqueue('deleteNeed', { id: id }); return; }
 
-  if (act === 'file-view') { viewAttachment(id); return; }
+  if (act === 'file-load') { loadPreview(id); return; }
 
   if (act === 'file-del') {
     if (!confirm('Remove this file? It goes to the trash in your Drive.')) return;
     delete previewCache[id];
-    delete previewOpen[id];
     enqueue('deleteAttachment', { id: id });
     toast('Removed');
     return;
   }
 
-  /* ---- notes and timer ---- */
-  if (act === 'add-note') {
-    var t9 = currentTask();
-    if (!t9) return;
-    var body = document.getElementById('fNote') ? document.getElementById('fNote').value.trim() : '';
-    if (!body) { toast('Nothing to add', true); return; }
-    enqueue('addNote', { id: uuid(), task_id: t9.id, body: body });
-    toast('Note added');
-    return;
-  }
-
-  if (act === 'timer') {
-    var t10 = currentTask();
-    if (!t10) return;
-    var timer = jget(K.timer, null);
-    if (timer && String(timer.taskId) === String(t10.id)) {
-      var mins = Math.max(1, Math.round((Date.now() - timer.startedAt) / 60000));
-      rawSet(K.timer, JSON.stringify(null));
-      var already = Number(t10.actual_min) || 0;
-      enqueue('upsertTask', { id: t10.id, actual_min: already + mins });
-      enqueue('addNote', { id: uuid(), task_id: t10.id, body: 'Worked ' + niceMins(mins) + '.' });
-      toast('Added ' + niceMins(mins));
-    } else {
-      jset(K.timer, { taskId: t10.id, startedAt: Date.now() });
-      toast('Timer running');
-      render();
-    }
-    return;
-  }
-
+  /* ---- files ---- */
   /* ---- settings ---- */
-  if (act === 'save-settings') {
-    var stale = parseInt(val('sStale'), 10);
-    if (!(stale > 0)) { toast('That needs to be at least one day', true); return; }
-    enqueue('setSetting', { key: 'stale_days', value: String(stale) });
-    toast('Saved');
-    return;
-  }
-
   if (act === 'save-conn') {
     setCfg({ url: val('sUrl'), token: val('sToken') });
     sync(true);
@@ -2400,12 +2002,6 @@ document.getElementById('setBtn').addEventListener('click', function () {
 });
 
 document.addEventListener('input', function (ev) {
-  if (ev.target.id === 'pickerSearch') {
-    // Filter by hiding rows. Rebuilding the sheet here is what made typing
-    // feel like the app was reloading on every character.
-    pickerFilter = ev.target.value;
-    filterPicker();
-  }
 });
 
 document.addEventListener('change', function (ev) {
@@ -2415,11 +2011,6 @@ document.addEventListener('change', function (ev) {
     if (file) uploadFile(file);
     return;
   }
-  if (ev.target && ev.target.id === 'fRole') {
-    attachRole = ev.target.value;
-    return;
-  }
-
   // Task fields save themselves when you tap away. `change` fires on blur
   // for text and number inputs, and immediately for the date picker.
   var field = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-save');
@@ -2428,6 +2019,7 @@ document.addEventListener('change', function (ev) {
     if (!t) return;
     var raw = ev.target.value.trim();
     var patch = { id: t.id };
+    if (field === 'notes') raw = ev.target.value;
 
     if (field === 'title') {
       if (!raw) { ev.target.value = t.title; return; }   // refuse to blank it
@@ -2440,9 +2032,10 @@ document.addEventListener('change', function (ev) {
     } else if (field === 'deadline') {
       if (raw === String(t.deadline || '')) return;
       patch.deadline = raw;
-    } else if (field === 'recur_days') {
-      if (raw === String(t.recur_days || '')) return;
-      patch.recur_days = raw;
+    } else if (field === 'notes') {
+      // Deliberately not trimmed against the raw value: blank clears it.
+      if (ev.target.value === String(t.notes || '')) return;
+      patch.notes = ev.target.value;
     } else {
       return;
     }
@@ -2457,14 +2050,9 @@ document.addEventListener('keydown', function (ev) {
     var b = document.querySelector('[data-act="quick-save"]');
     if (b) b.click();
   }
-  if (ev.key === 'Enter' && (ev.target.id === 'pickerSearch' || ev.target.id === 'pickerEst')) {
-    ev.preventDefault();
-    var c = document.querySelector('[data-act="create-dep"]');
-    if (c) c.click();
-  }
   if (ev.key === 'Escape' && (openScreen || openTask)) {
-    if (openScreen === 'picker') openScreen = null;
-    else { openScreen = null; openTask = null; }
+    openScreen = null;
+    openTask = null;
     render();
   }
 });
