@@ -1274,6 +1274,7 @@ var tab = 'now';
 var openTask = null;
 var openScreen = null;   // 'compose' | 'settings' | 'picker'
 var pickerFilter = '';
+var pickerEstText = '';
 
 var TABS = [
   { id: 'now', label: 'Now' },
@@ -1573,7 +1574,8 @@ function sheetPicker(ctx) {
   var t = ctx.byId[String(openTask)];
   if (!t) return '';
   var current = splitIds(t.blocked_by);
-  var f = pickerFilter.toLowerCase();
+  var typed = pickerFilter.trim();
+  var f = typed.toLowerCase();
 
   var options = ctx.tasks.filter(function (o) {
     if (String(o.id) === String(t.id)) return false;
@@ -1583,18 +1585,44 @@ function sheetPicker(ctx) {
     return true;
   }).slice(0, 40);
 
+  var exact = options.some(function (o) {
+    return String(o.title).toLowerCase() === f;
+  });
+
   return '' +
-    '<header><h2>What has to happen first?</h2>' +
-      '<button class="btn" data-act="close-picker">Done</button></header>' +
-    '<label class="field"><span>Search your open tasks</span>' +
-      '<input type="text" id="pickerSearch" data-autofocus value="' + esc(pickerFilter) + '"></label>' +
+    '<header><h2>Before &ldquo;' + esc(t.title) + '&rdquo;</h2>' +
+      '<button class="btn primary" data-act="close-picker">Done</button></header>' +
+
+    '<label class="field"><span>What has to happen first?</span>' +
+      '<input type="text" id="pickerSearch" data-autofocus value="' + esc(pickerFilter) + '" ' +
+        'placeholder="Strip the old paint"></label>' +
+
+    (typed && !exact
+      ? '<div class="row" style="margin-bottom:18px">' +
+          '<input type="text" id="pickerEst" placeholder="how long? 2h" value="' +
+            esc(pickerEstText) + '">' +
+          '<button class="btn primary" data-act="create-dep" style="flex:0 0 auto">Add it</button>' +
+        '</div>' +
+        '<p class="empty" style="padding:0 0 18px">This becomes a new task that has to ' +
+          'finish before &ldquo;' + esc(t.title) + '&rdquo; can start' +
+          (effDeadline(t, ctx).date
+            ? ', and it picks up the ' + esc(niceDate(effDeadline(t, ctx).date)) + ' deadline.'
+            : '.') +
+        '</p>'
+      : '') +
+
     (options.length
-      ? options.map(function (o) {
+      ? (typed && !exact ? '<p class="group">Or something you already have</p>' : '') +
+        options.map(function (o) {
           return '<button class="pick" data-act="add-dep" data-id="' + esc(o.id) + '">' +
-            esc(o.title) + '</button>';
+            esc(o.title) +
+            (o.deadline ? '<br><span class="age">due ' + esc(niceDate(o.deadline)) + '</span>' : '') +
+            '</button>';
         }).join('')
-      : '<p class="empty">No open tasks match. Create the earlier task first, ' +
-        'then come back and link it.</p>');
+      : (typed
+          ? ''
+          : '<p class="empty">Type what needs doing first and tap Add it. You can add ' +
+            'several, one after another.</p>'));
 }
 
 function sheetTask(ctx) {
@@ -1668,8 +1696,8 @@ function sheetTask(ctx) {
               '<button data-act="rm-dep" data-id="' + esc(id) + '" title="Remove">&times;</button>' +
             '</span>';
           }).join('') + '</div>'
-        : '<p class="empty" style="padding:0 0 8px">Nothing has to happen first.</p>') +
-      '<button class="btn wide" data-act="open-picker" style="margin-top:10px">Add a prerequisite</button>' +
+        : '<p class="empty" style="padding:0 0 8px">Nothing has to happen first yet.</p>') +
+      '<button class="btn wide" data-act="open-picker" style="margin-top:10px">Add something that comes first</button>' +
     '</section>' +
 
     '<section class="block"><h3>Still needed</h3>' +
@@ -1821,7 +1849,38 @@ document.addEventListener('click', function (ev) {
   if (act === 'tab') { tab = btn.getAttribute('data-tab'); render(); return; }
   if (act === 'open') { openTask = id; openScreen = null; render(); return; }
   if (act === 'close') { openScreen = null; openTask = null; render(); return; }
-  if (act === 'open-picker') { openScreen = 'picker'; pickerFilter = ''; render(); return; }
+  if (act === 'create-dep') {
+    var ctxC = buildContext();
+    var host = ctxC.byId[String(openTask)];
+    if (!host) return;
+
+    // Read both fields before enqueueing: the first write re-renders the
+    // sheet and the inputs go with it.
+    var newTitle = val('pickerSearch');
+    var newEst = readMins(val('pickerEst'));
+    if (!newTitle) { toast('Type what needs doing first', true); return; }
+
+    var madeId = uuid();
+    enqueue('upsertTask', { id: madeId, title: newTitle, estimate_min: newEst || '' });
+
+    var deps0 = splitIds(host.blocked_by);
+    deps0.push(madeId);
+    enqueue('upsertTask', { id: host.id, blocked_by: deps0.join(',') });
+
+    pickerFilter = '';
+    pickerEstText = '';
+    toast('Added before \u201c' + host.title + '\u201d');
+    render();
+    return;
+  }
+
+  if (act === 'open-picker') {
+    openScreen = 'picker';
+    pickerFilter = '';
+    pickerEstText = '';
+    render();
+    return;
+  }
   if (act === 'close-picker') { openScreen = null; render(); return; }
 
   /* ---- first run ---- */
@@ -2048,6 +2107,10 @@ document.getElementById('setBtn').addEventListener('click', function () {
 });
 
 document.addEventListener('input', function (ev) {
+  if (ev.target.id === 'pickerEst') {
+    pickerEstText = ev.target.value;   // remembered, no re-render needed
+    return;
+  }
   if (ev.target.id === 'pickerSearch') {
     pickerFilter = ev.target.value;
     var keep = ev.target.value;
@@ -2074,6 +2137,11 @@ document.addEventListener('keydown', function (ev) {
     ev.preventDefault();
     var b = document.querySelector('[data-act="quick-save"]');
     if (b) b.click();
+  }
+  if (ev.key === 'Enter' && (ev.target.id === 'pickerSearch' || ev.target.id === 'pickerEst')) {
+    ev.preventDefault();
+    var c = document.querySelector('[data-act="create-dep"]');
+    if (c) c.click();
   }
   if (ev.key === 'Escape' && (openScreen || openTask)) {
     if (openScreen === 'picker') openScreen = null;
