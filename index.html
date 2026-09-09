@@ -495,6 +495,68 @@ ul.plain li .age { color: var(--faint); font-size: 12.5px; white-space: nowrap; 
 
 .preview b { color: var(--ink); font-weight: 600; }
 
+.card.gated { background: var(--sunk); }
+.card.gated h3 { color: var(--muted); }
+.card.gated .body { opacity: .9; }
+
+.gate {
+  margin: 5px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--faint);
+}
+
+.grip {
+  flex: 0 0 46px;
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  color: var(--faint);
+  font-size: 15px;
+  letter-spacing: -3px;
+  touch-action: none;          /* the handle drags, it never scrolls */
+  cursor: grab;
+}
+
+.card.lifted {
+  position: fixed;
+  z-index: 50;
+  margin: 0;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .22);
+  pointer-events: none;
+  cursor: grabbing;
+}
+
+.dropslot {
+  margin-bottom: 10px;
+  border: 1px dashed var(--faint);
+  border-radius: 10px;
+  background: transparent;
+}
+
+body.dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.orderbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.orderbar span {
+  flex: 1;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  max-width: 28ch;
+}
+
+.orderbar .iconbtn { flex: 0 0 auto; margin-top: 3px; }
+
 .thumb {
   display: block;
   width: 100%;
@@ -565,6 +627,7 @@ var APP_VERSION = 'v1.0';
    ================================================================ */
 
 var mem = {};
+var contextCache = null;
 var persists = (function () {
   try {
     localStorage.setItem('ready.probe', '1');
@@ -579,6 +642,9 @@ function rawGet(k) {
 }
 function rawSet(k, v) {
   mem[k] = v;
+  // Any write to stored state drops the derived cache. Doing it here means
+  // no caller has to remember to.
+  if (k === 'ready.server' || k === 'ready.outbox') contextCache = null;
   try { if (persists) localStorage.setItem(k, v); } catch (e) { persists = false; }
 }
 function jget(k, fallback) {
@@ -694,10 +760,16 @@ function esc(s) {
    ================================================================ */
 
 function enqueue(op, data) {
+  enqueueQuiet(op, data);
+  render();
+}
+
+// Records the change and schedules the sync, but draws nothing. Used when
+// the caller is about to redraw anyway, or is mid-drag and must not.
+function enqueueQuiet(op, data) {
   var box = getOutbox();
   box.push({ mid: uuid(), op: op, data: data });
   setOutbox(box);
-  render();
   scheduleSync();
 }
 
@@ -807,6 +879,7 @@ function viewState() {
    ================================================================ */
 
 function buildContext() {
+  if (contextCache) return contextCache;
   var s = viewState();
   var ctx = {
     today: today(),
@@ -814,14 +887,10 @@ function buildContext() {
     settings: s.settings,
     defaultEst: Math.max(1, parseInt(s.settings.default_estimate_min, 10) || 30),
     staleDays: Math.max(1, parseInt(s.settings.stale_days, 10) || 7),
-    byId: {}, needsBy: {}, notesBy: {}, childrenBy: {}, attachBy: {}, dependentsBy: {}
+    byId: {}, needsBy: {}, notesBy: {}, attachBy: {}, dependentsBy: {}
   };
 
   ctx.tasks.forEach(function (t) { ctx.byId[String(t.id)] = t; });
-  ctx.tasks.forEach(function (t) {
-    var p = String(t.parent_id || '');
-    if (p && ctx.byId[p]) (ctx.childrenBy[p] = ctx.childrenBy[p] || []).push(t);
-  });
   s.needs.forEach(function (n) {
     (ctx.needsBy[String(n.task_id)] = ctx.needsBy[String(n.task_id)] || []).push(n);
   });
@@ -846,6 +915,7 @@ function buildContext() {
   });
 
   ctx.deadlineMemo = {};
+  contextCache = ctx;
   return ctx;
 }
 
@@ -932,19 +1002,51 @@ function decorate(t, ctx) {
 
 var RISK_RANK = { late: 0, today: 1, soon: 2, ok: 3 };
 
-function sortReady(a, b) {
+function orderValue(t) {
+  var v = t.sort_order;
+  if (v === '' || v === null || v === undefined) return null;
+  var n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+function urgencyCompare(a, b) {
   var r = RISK_RANK[a.risk] - RISK_RANK[b.risk];
   if (r) return r;
+
   if (a.deadline !== b.deadline) {
     if (!a.deadline) return 1;
     if (!b.deadline) return -1;
     return String(a.deadline).localeCompare(String(b.deadline));
   }
+
+  // Same deadline and one waits on the other: the prerequisite goes first,
+  // so a chain reads top to bottom in the order you would actually do it.
+  var aWaitsOnB = splitIds(a.task.blocked_by).indexOf(String(b.task.id)) !== -1;
+  var bWaitsOnA = splitIds(b.task.blocked_by).indexOf(String(a.task.id)) !== -1;
+  if (aWaitsOnB && !bWaitsOnA) return 1;
+  if (bWaitsOnA && !aWaitsOnB) return -1;
+
   var ea = Number(a.task.estimate_min) || 1e9;
   var eb = Number(b.task.estimate_min) || 1e9;
   if (ea !== eb) return ea - eb;
   return String(a.task.created_at).localeCompare(String(b.task.created_at));
 }
+
+function manualCompare(a, b) {
+  var oa = orderValue(a.task);
+  var ob = orderValue(b.task);
+  if (oa === null && ob === null) return urgencyCompare(a, b);
+  if (oa === null) return 1;      // never hand-placed: sits below
+  if (ob === null) return -1;
+  if (oa !== ob) return oa - ob;
+  return String(a.task.created_at).localeCompare(String(b.task.created_at));
+}
+
+function orderList(list, mode) {
+  return list.slice().sort(mode === 'manual' ? manualCompare : urgencyCompare);
+}
+
+function sortByUrgency(list) { return orderList(list, 'urgency'); }
 
 function riskSentence(d) {
   if (d.status === 'done' || !d.deadline) return '';
@@ -1267,22 +1369,200 @@ function attachmentSection(t, ctx) {
 }
 
 /* ================================================================
+   hand-ordering
+
+   Order lives in a numeric sort_order on each task. A drop lands the moved
+   task midway between its new neighbours, so only that one task is written
+   and nothing else has to be renumbered. When the midpoints get too close
+   to each other to be meaningful, the whole list is renumbered once.
+
+   Dragging is driven by pointer events from a handle rather than a
+   long-press on the card, so a drag can never be mistaken for a scroll.
+   ================================================================ */
+
+var ORDER_GAP = 1;
+var ORDER_MIN_GAP = 0.0005;
+
+function assignInitialOrder(rows) {
+  // Called the first time you switch to My order: freeze what is on screen
+  // as the starting arrangement so nothing jumps.
+  rows.forEach(function (d, i) {
+    if (orderValue(d.task) === null) {
+      enqueueQuiet('upsertTask', { id: d.task.id, sort_order: (i + 1) * ORDER_GAP });
+    }
+  });
+}
+
+function orderBetween(above, below, rows) {
+  var a = above ? orderValue(above.task) : null;
+  var b = below ? orderValue(below.task) : null;
+
+  if (a === null && b === null) return ORDER_GAP;
+  if (a === null) return b - ORDER_GAP;
+  if (b === null) return a + ORDER_GAP;
+
+  if (b - a < ORDER_MIN_GAP) {
+    // Out of room between these two. Renumber everything, then retry.
+    rows.forEach(function (d, i) {
+      enqueueQuiet('upsertTask', { id: d.task.id, sort_order: (i + 1) * ORDER_GAP });
+    });
+    var ai = rows.indexOf(above);
+    return (ai + 1) * ORDER_GAP + ORDER_GAP / 2;
+  }
+
+  return a + (b - a) / 2;
+}
+
+var drag = null;
+
+function startDrag(ev, taskId) {
+  var list = document.getElementById('tasklist');
+  var card = document.querySelector('[data-card="' + taskId + '"]');
+  if (!list || !card) return;
+
+  ev.preventDefault();
+
+  var rect = card.getBoundingClientRect();
+  var placeholder = document.createElement('div');
+  placeholder.className = 'dropslot';
+  placeholder.style.height = rect.height + 'px';
+
+  drag = {
+    id: taskId,
+    card: card,
+    list: list,
+    placeholder: placeholder,
+    grabDy: ev.clientY - rect.top,
+    width: rect.width,
+    left: rect.left,
+    scrollRaf: null,
+    scrollDir: 0
+  };
+
+  dragging = true;
+
+  card.parentNode.insertBefore(placeholder, card);
+  card.classList.add('lifted');
+  card.style.width = rect.width + 'px';
+  card.style.left = rect.left + 'px';
+  card.style.top = (rect.top) + 'px';
+
+  document.body.classList.add('dragging');
+  moveDrag(ev);
+}
+
+function moveDrag(ev) {
+  if (!drag) return;
+
+  drag.card.style.top = (ev.clientY - drag.grabDy) + 'px';
+
+  // Work out where the placeholder belongs by comparing the pointer against
+  // the midpoint of every other card still in the flow.
+  var siblings = Array.prototype.slice
+    .call(drag.list.querySelectorAll('.card:not(.lifted)'));
+  var target = null;
+
+  for (var i = 0; i < siblings.length; i++) {
+    var r = siblings[i].getBoundingClientRect();
+    if (ev.clientY < r.top + r.height / 2) { target = siblings[i]; break; }
+  }
+
+  if (target) drag.list.insertBefore(drag.placeholder, target);
+  else drag.list.appendChild(drag.placeholder);
+
+  // Autoscroll when the finger nears an edge, otherwise long lists are
+  // unreachable mid-drag.
+  var margin = 90;
+  var dir = 0;
+  if (ev.clientY < margin) dir = -1;
+  else if (ev.clientY > window.innerHeight - margin) dir = 1;
+
+  if (dir !== drag.scrollDir) {
+    drag.scrollDir = dir;
+    if (drag.scrollRaf) { cancelAnimationFrame(drag.scrollRaf); drag.scrollRaf = null; }
+    if (dir) {
+      var step = function () {
+        if (!drag || !drag.scrollDir) return;
+        window.scrollBy(0, drag.scrollDir * 12);
+        drag.scrollRaf = requestAnimationFrame(step);
+      };
+      drag.scrollRaf = requestAnimationFrame(step);
+    }
+  }
+}
+
+function endDrag() {
+  if (!drag) return;
+
+  if (drag.scrollRaf) cancelAnimationFrame(drag.scrollRaf);
+
+  var slot = drag.placeholder;
+  var ids = Array.prototype.slice.call(drag.list.children)
+    .map(function (el) {
+      if (el === slot) return drag.id;
+      if (el === drag.card) return null;
+      return el.getAttribute('data-card');
+    })
+    .filter(function (x) { return x; });
+
+  drag.card.classList.remove('lifted');
+  drag.card.style.cssText = '';
+  if (slot.parentNode) slot.parentNode.removeChild(slot);
+  document.body.classList.remove('dragging');
+
+  var movedId = drag.id;
+  drag = null;
+  dragging = false;
+
+  // Recompute the moved task's order against whoever it landed between.
+  var ctx = buildContext();
+  var rows = ids.map(function (id) {
+    var t = ctx.byId[String(id)];
+    return t ? decorate(t, ctx) : null;
+  }).filter(function (x) { return x; });
+
+  var at = -1;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i].task.id) === String(movedId)) { at = i; break; }
+  }
+  if (at < 0) { render(); return; }
+
+  var value = orderBetween(rows[at - 1] || null, rows[at + 1] || null, rows);
+  enqueue('upsertTask', { id: movedId, sort_order: value });
+}
+
+document.addEventListener('pointerdown', function (ev) {
+  var grip = ev.target.closest && ev.target.closest('[data-grip]');
+  if (!grip) return;
+  grip.setPointerCapture(ev.pointerId);
+  startDrag(ev, grip.getAttribute('data-grip'));
+});
+
+document.addEventListener('pointermove', function (ev) {
+  if (drag) { ev.preventDefault(); moveDrag(ev); }
+}, { passive: false });
+
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
+
+/* ================================================================
    rendering
    ================================================================ */
 
-var tab = 'now';
 var openTask = null;
 var openScreen = null;   // 'compose' | 'settings' | 'picker'
 var pickerFilter = '';
-var pickerEstText = '';
 
 var TABS = [
-  { id: 'now', label: 'Now' },
-  { id: 'blocked', label: 'Blocked' },
+  { id: 'all', label: 'All' },
   { id: 'waiting', label: 'Waiting' },
-  { id: 'soon', label: 'Soon' },
   { id: 'done', label: 'Done' }
 ];
+
+var tab = 'all';
+var orderMode = rawGet('ready.order') === 'manual' ? 'manual' : 'urgency';
+var dragging = false;
+var listStale = false;
 
 function toast(msg, bad) {
   var old = document.querySelector('.toast');
@@ -1309,34 +1589,79 @@ function card(d, opts) {
   if (d.stale) bits.push('<span>untouched ' + plural(ageInDays(d.lastTouch), 'day') + '</span>');
   if (opts.extra) bits.push('<span>' + esc(opts.extra) + '</span>');
 
+  // Blocked and waiting tasks stay in the list. They are marked, not hidden:
+  // it is your list, and you should be able to see all of it.
+  var gate = '';
+  if (d.status === 'blocked') {
+    gate = '<p class="gate">after ' + esc(d.prereqs.map(function (p) { return p.title; })
+      .slice(0, 2).join(', ')) +
+      (d.prereqs.length > 2 ? ' and ' + plural(d.prereqs.length - 2, 'other') : '') + '</p>';
+  } else if (d.status === 'waiting') {
+    gate = '<p class="gate">waiting on ' + esc(d.needs.map(function (n) { return n.label; })
+      .slice(0, 2).join(', ')) +
+      (d.needs.length > 2 ? ' and ' + plural(d.needs.length - 2, 'other') : '') + '</p>';
+  }
+
   var sentence = riskSentence(d);
 
   return '' +
-    '<article class="card' + (d.status === 'done' ? ' done' : '') + '" data-risk="' + d.risk + '">' +
+    '<article class="card' +
+        (d.status === 'done' ? ' done' : '') +
+        (d.status === 'blocked' || d.status === 'waiting' ? ' gated' : '') +
+      '" data-risk="' + d.risk + '" data-card="' + esc(t.id) + '">' +
       '<span class="edge"></span>' +
       '<button class="body" data-act="open" data-id="' + esc(t.id) + '">' +
         '<h3>' + esc(t.title || 'Untitled') + '</h3>' +
         (sentence ? '<p class="signal" data-risk="' + d.risk + '">' + esc(sentence) + '</p>' : '') +
+        gate +
         (bits.length ? '<p class="meta">' + bits.join('') + '</p>' : '') +
       '</button>' +
-      '<button class="tick' + (d.status === 'done' ? ' on' : '') + '" data-act="toggle" ' +
-        'data-id="' + esc(t.id) + '" title="Mark done">' +
-        (d.status === 'done' ? '&#10003;' : '&#9711;') +
-      '</button>' +
+      (opts.drag
+        ? '<button class="grip" data-grip="' + esc(t.id) + '" ' +
+            'aria-label="Move ' + esc(t.title || 'task') + '">&#8942;&#8942;</button>'
+        : '<button class="tick' + (d.status === 'done' ? ' on' : '') + '" data-act="toggle" ' +
+            'data-id="' + esc(t.id) + '" title="Mark done">' +
+            (d.status === 'done' ? '&#10003;' : '&#9711;') +
+          '</button>') +
     '</article>';
 }
 
+/* The old render() rebuilt the list, the tabs and the open sheet on every
+   change, including every keystroke. That is what made typing feel like the
+   app was reloading. These two do their own piece and nothing else. */
+
 function render() {
+  if (dragging) return;      // never rebuild the DOM out from under a finger
+  renderList();
+  renderSheet();
+}
+
+function renderList() {
+  if (dragging) return;
+
+  // Nothing behind an open sheet is visible, so do not pay to draw it.
+  if (openScreen || openTask) { listStale = true; return; }
+  listStale = false;
+
   var ctx = buildContext();
   var all = ctx.tasks.map(function (t) { return decorate(t, ctx); });
 
-  var ready = all.filter(function (d) { return d.status === 'ready'; }).sort(sortReady);
-  var blocked = all.filter(function (d) { return d.status === 'blocked'; });
+  var open = all.filter(function (d) { return d.status !== 'done'; });
   var waiting = all.filter(function (d) { return d.status === 'waiting'; });
   var done = all.filter(function (d) { return d.status === 'done'; });
 
-  renderTabs(ready, blocked, waiting, done);
+  renderTabs(open, waiting, done);
 
+  var html = banners();
+
+  if (tab === 'all') html += viewAll(open, ctx);
+  else if (tab === 'waiting') html += viewWaiting(waiting, ctx);
+  else html += viewDone(done, ctx);
+
+  document.getElementById('screen').innerHTML = html;
+}
+
+function banners() {
   var html = '';
   var box = getOutbox();
   if (box.length) {
@@ -1357,25 +1682,11 @@ function render() {
     html += '<div class="warn">This browser will not let the page store data, so your ' +
       'tasks are only held in memory until you reload. Everything still saves to your sheet.</div>';
   }
-
-  if (tab === 'now') html += viewNow(ready, blocked, waiting, ctx);
-  else if (tab === 'blocked') html += viewBlocked(blocked, ctx);
-  else if (tab === 'waiting') html += viewWaiting(waiting, ctx);
-  else if (tab === 'soon') html += viewSoon(all, ctx);
-  else html += viewDone(done, ctx);
-
-  document.getElementById('screen').innerHTML = html;
-  renderSheet(ctx);
+  return html;
 }
 
-function renderTabs(ready, blocked, waiting, done) {
-  var counts = {
-    now: ready.length, blocked: blocked.length, waiting: waiting.length,
-    soon: 0, done: done.length
-  };
-  counts.soon = ready.concat(blocked, waiting).filter(function (d) {
-    return d.deadline;
-  }).length;
+function renderTabs(open, waiting, done) {
+  var counts = { all: open.length, waiting: waiting.length, done: done.length };
 
   document.getElementById('tabs').innerHTML = TABS.map(function (t) {
     return '<button data-act="tab" data-tab="' + t.id + '"' +
@@ -1385,59 +1696,39 @@ function renderTabs(ready, blocked, waiting, done) {
   }).join('');
 }
 
-function viewNow(ready, blocked, waiting, ctx) {
-  if (!ctx.tasks.length) {
-    return '<p class="empty"><strong>Nothing here yet.</strong><br>' +
-      'Tap + to add the first task. A name is enough; a deadline and a rough ' +
-      'time make the list sort itself.</p>';
+function viewAll(open, ctx) {
+  if (!open.length) {
+    if (!ctx.tasks.length) {
+      return '<p class="empty"><strong>Nothing here yet.</strong><br>' +
+        'Tap + to add the first task. A name is enough; a deadline and a rough ' +
+        'time make the list sort itself.</p>';
+    }
+    return '<p class="lede quiet">Everything is done.</p>';
   }
 
-  if (!ready.length) {
-    var why = [];
-    if (blocked.length) why.push(plural(blocked.length, 'task') + ' waiting on other tasks');
-    if (waiting.length) why.push(plural(waiting.length, 'task') + ' waiting on something you need');
-    return '<p class="lede quiet">Nothing is ready to start.</p>' +
-      '<p class="empty">' + (why.length
-        ? esc(why.join(', ')) + '. Clear one of those to unlock work.'
-        : 'Everything is done.') + '</p>';
-  }
+  var rows = orderList(open, orderMode);
 
-  var overdue = ready.filter(function (d) { return d.risk === 'late'; }).length;
-  var dueToday = ready.filter(function (d) { return d.risk === 'today'; }).length;
+  var overdue = open.filter(function (d) { return d.risk === 'late'; }).length;
+  var dueToday = open.filter(function (d) { return d.risk === 'today'; }).length;
   var lede;
-  if (overdue) {
-    lede = plural(overdue, 'thing') + ' overdue.';
-  } else if (dueToday) {
-    lede = plural(dueToday, 'thing') + ' due today.';
-  } else {
-    lede = plural(ready.length, 'thing') + ' ready, nothing pressing.';
-  }
+  if (overdue) lede = plural(overdue, 'thing') + ' overdue.';
+  else if (dueToday) lede = plural(dueToday, 'thing') + ' due today.';
+  else lede = plural(open.length, 'thing') + ' open, nothing pressing.';
 
-  return '<p class="lede">' + esc(lede) + '</p>' +
-    ready.map(function (d) { return card(d, {}); }).join('');
-}
+  var toggle = '<div class="orderbar">' +
+    '<span>' + esc(lede) + '</span>' +
+    '<button class="iconbtn" data-act="order-toggle">' +
+      (orderMode === 'manual' ? 'My order' : 'By urgency') +
+    '</button></div>';
 
-function viewBlocked(blocked, ctx) {
-  if (!blocked.length) {
-    return '<p class="empty"><strong>Nothing is blocked.</strong><br>' +
-      'When one task has to happen before another, open the later one and add ' +
-      'the earlier one under “Blocked by”.</p>';
-  }
-
-  var groups = {};
-  blocked.forEach(function (d) {
-    d.prereqs.forEach(function (p) {
-      (groups[String(p.id)] = groups[String(p.id)] || { p: p, list: [] }).list.push(d);
-    });
-  });
-
-  return Object.keys(groups).map(function (id) {
-    var g = groups[id];
-    return '<button class="group link" data-act="open" data-id="' + esc(g.p.id) + '">' +
-        'Finish “' + esc(g.p.title) + '” to unlock ' + plural(g.list.length, 'task') +
-      '</button>' +
-      g.list.map(function (d) { return card(d, {}); }).join('');
-  }).join('');
+  return toggle +
+    (orderMode === 'manual'
+      ? '<p class="empty" style="padding:0 0 12px">Drag by the handle on the right to ' +
+        'move things. Urgency still shows in the colours.</p>'
+      : '') +
+    '<div id="tasklist">' +
+      rows.map(function (d) { return card(d, { drag: orderMode === 'manual' }); }).join('') +
+    '</div>';
 }
 
 function viewWaiting(waiting, ctx) {
@@ -1471,44 +1762,6 @@ function viewWaiting(waiting, ctx) {
     }).join('') + '</ul>';
 }
 
-function viewSoon(all, ctx) {
-  var dated = all.filter(function (d) { return d.status !== 'done' && d.deadline; });
-  if (!dated.length) {
-    return '<p class="empty"><strong>No deadlines set.</strong><br>' +
-      'Add one to a task and it will appear here, along with the date you ' +
-      'need to start by.</p>';
-  }
-
-  dated.sort(function (a, b) {
-    return String(a.deadline).localeCompare(String(b.deadline));
-  });
-
-  var buckets = [
-    { label: 'Overdue', list: [] },
-    { label: 'Today', list: [] },
-    { label: 'Next seven days', list: [] },
-    { label: 'Later', list: [] }
-  ];
-
-  dated.forEach(function (d) {
-    var gap = dayGap(ctx.today, d.deadline);
-    if (gap < 0) buckets[0].list.push(d);
-    else if (gap === 0) buckets[1].list.push(d);
-    else if (gap <= 7) buckets[2].list.push(d);
-    else buckets[3].list.push(d);
-  });
-
-  return buckets.filter(function (b) { return b.list.length; }).map(function (b) {
-    return '<p class="group">' + b.label + '</p>' +
-      b.list.map(function (d) {
-        var extra = '';
-        if (d.status === 'blocked') extra = 'blocked';
-        else if (d.status === 'waiting') extra = 'waiting on something';
-        return card(d, { extra: extra });
-      }).join('');
-  }).join('');
-}
-
 function viewDone(done, ctx) {
   var recent = done.filter(function (d) { return ageInDays(d.task.completed_at) <= 30; });
   recent.sort(function (a, b) {
@@ -1532,19 +1785,44 @@ function viewDone(done, ctx) {
 
 /* ---------------- sheets ---------------- */
 
-function renderSheet(ctx) {
-  var existing = document.querySelector('.sheet');
-  if (existing) existing.remove();
+function renderSheet() {
+  if (dragging) return;
 
+  var existing = document.querySelector('.sheet');
+  var wanted = openScreen || (openTask ? 'task' : null);
+
+  if (!wanted) {
+    if (existing) existing.remove();
+    if (listStale) renderList();
+    return;
+  }
+
+  var ctx = buildContext();
   var html = '';
   if (openScreen === 'compose') html = sheetCompose();
   else if (openScreen === 'settings') html = sheetSettings(ctx);
   else if (openScreen === 'picker') html = sheetPicker(ctx);
-  else if (openTask) html = sheetTask(ctx);
-  else return;
+  else html = sheetTask(ctx);
+
+  if (existing) {
+    // Reuse the element. Removing and re-adding it replays the slide-in
+    // animation and throws away the scroll position, which is most of what
+    // made saving a note feel like the screen had reloaded.
+    var top = existing.scrollTop;
+    var same = existing.getAttribute('data-kind') === wanted;
+    existing.setAttribute('data-kind', wanted);
+    existing.innerHTML = html;
+    existing.scrollTop = same ? top : 0;
+    if (!same) {
+      var f2 = existing.querySelector('[data-autofocus]');
+      if (f2) f2.focus();
+    }
+    return;
+  }
 
   var el = document.createElement('div');
   el.className = 'sheet';
+  el.setAttribute('data-kind', wanted);
   el.innerHTML = html;
   document.body.appendChild(el);
 
@@ -1570,59 +1848,84 @@ function sheetCompose() {
       'waiting on this task, it picks up that deadline on its own.</p>';
 }
 
+// Shows and hides what is already on screen. No innerHTML, no focus
+// juggling, no cursor jumping.
+function filterPicker() {
+  var sheet = document.querySelector('.sheet');
+  if (!sheet) return;
+
+  var typed = pickerFilter.trim().toLowerCase();
+  var shown = 0;
+  var exact = false;
+
+  Array.prototype.slice.call(sheet.querySelectorAll('[data-pick]')).forEach(function (el) {
+    var title = (el.getAttribute('data-pick') || '').toLowerCase();
+    var hit = !typed || title.indexOf(typed) !== -1;
+    el.hidden = !hit;
+    if (hit) shown++;
+    if (title === typed) exact = true;
+  });
+
+  var creator = sheet.querySelector('[data-createrow]');
+  if (creator) creator.hidden = !typed || exact;
+
+  var orLabel = sheet.querySelector('[data-orlabel]');
+  if (orLabel) orLabel.hidden = !typed || exact || !shown;
+
+  var none = sheet.querySelector('[data-nomatch]');
+  if (none) none.hidden = !(typed && !shown && !exact);
+
+  var hint = sheet.querySelector('[data-pickhint]');
+  if (hint) hint.hidden = !!typed;
+}
+
 function sheetPicker(ctx) {
   var t = ctx.byId[String(openTask)];
   if (!t) return '';
   var current = splitIds(t.blocked_by);
-  var typed = pickerFilter.trim();
-  var f = typed.toLowerCase();
+  var inherited = effDeadline(t, ctx).date;
 
+  // Everything renderable goes in once. filterPicker() shows and hides.
   var options = ctx.tasks.filter(function (o) {
     if (String(o.id) === String(t.id)) return false;
     if (isDone(o)) return false;
     if (current.indexOf(String(o.id)) !== -1) return false;
-    if (f && String(o.title).toLowerCase().indexOf(f) === -1) return false;
     return true;
-  }).slice(0, 40);
-
-  var exact = options.some(function (o) {
-    return String(o.title).toLowerCase() === f;
-  });
+  }).slice(0, 60);
 
   return '' +
     '<header><h2>Before &ldquo;' + esc(t.title) + '&rdquo;</h2>' +
       '<button class="btn primary" data-act="close-picker">Done</button></header>' +
 
     '<label class="field"><span>What has to happen first?</span>' +
-      '<input type="text" id="pickerSearch" data-autofocus value="' + esc(pickerFilter) + '" ' +
+      '<input type="text" id="pickerSearch" data-autofocus autocomplete="off" ' +
         'placeholder="Strip the old paint"></label>' +
 
-    (typed && !exact
-      ? '<div class="row" style="margin-bottom:18px">' +
-          '<input type="text" id="pickerEst" placeholder="how long? 2h" value="' +
-            esc(pickerEstText) + '">' +
-          '<button class="btn primary" data-act="create-dep" style="flex:0 0 auto">Add it</button>' +
-        '</div>' +
-        '<p class="empty" style="padding:0 0 18px">This becomes a new task that has to ' +
-          'finish before &ldquo;' + esc(t.title) + '&rdquo; can start' +
-          (effDeadline(t, ctx).date
-            ? ', and it picks up the ' + esc(niceDate(effDeadline(t, ctx).date)) + ' deadline.'
-            : '.') +
-        '</p>'
-      : '') +
+    '<div data-createrow hidden>' +
+      '<div class="row" style="margin-bottom:10px">' +
+        '<input type="text" id="pickerEst" placeholder="how long? 2h" autocomplete="off">' +
+        '<button class="btn primary" data-act="create-dep" style="flex:0 0 auto">Add it</button>' +
+      '</div>' +
+      '<p class="empty" style="padding:0 0 18px">A new task that has to finish before ' +
+        'this one can start' +
+        (inherited ? ', due ' + esc(niceDate(inherited)) + ' like its parent.' : '.') +
+      '</p>' +
+    '</div>' +
 
-    (options.length
-      ? (typed && !exact ? '<p class="group">Or something you already have</p>' : '') +
-        options.map(function (o) {
-          return '<button class="pick" data-act="add-dep" data-id="' + esc(o.id) + '">' +
-            esc(o.title) +
-            (o.deadline ? '<br><span class="age">due ' + esc(niceDate(o.deadline)) + '</span>' : '') +
-            '</button>';
-        }).join('')
-      : (typed
-          ? ''
-          : '<p class="empty">Type what needs doing first and tap Add it. You can add ' +
-            'several, one after another.</p>'));
+    '<p class="empty" data-pickhint style="padding:0 0 12px">Type it and tap Add it. ' +
+      'Add as many as you like, one after another.</p>' +
+
+    '<p class="group" data-orlabel hidden>Or something you already have</p>' +
+
+    options.map(function (o) {
+      return '<button class="pick" data-act="add-dep" data-id="' + esc(o.id) + '" ' +
+        'data-pick="' + esc(o.title) + '">' + esc(o.title) +
+        (o.deadline ? '<br><span class="age">due ' + esc(niceDate(o.deadline)) + '</span>' : '') +
+        '</button>';
+    }).join('') +
+
+    '<p class="empty" data-nomatch hidden>Nothing existing matches. Tap Add it above to ' +
+      'make it a new task.</p>';
 }
 
 function sheetTask(ctx) {
@@ -1632,7 +1935,6 @@ function sheetTask(ctx) {
   var d = decorate(t, ctx);
   var needs = (ctx.needsBy[String(t.id)] || []);
   var notes = (ctx.notesBy[String(t.id)] || []);
-  var kids = (ctx.childrenBy[String(t.id)] || []);
   var timer = jget(K.timer, null);
   var running = timer && String(timer.taskId) === String(t.id);
 
@@ -1665,24 +1967,20 @@ function sheetTask(ctx) {
       '<button class="btn" data-act="close">Close</button></header>' +
 
     '<label class="field"><span>Title</span>' +
-      '<input type="text" id="fTitle" value="' + esc(t.title) + '"></label>' +
+      '<input type="text" id="fTitle" data-save="title" value="' + esc(t.title) + '"></label>' +
 
     '<div class="row">' +
       '<label class="field"><span>Deadline</span>' +
-        '<input type="date" id="fDeadline" value="' + esc(t.deadline || '') + '"></label>' +
-      '<label class="field"><span>Estimate</span>' +
-        '<input type="text" id="fEstimate" placeholder="2h" value="' +
+        '<input type="date" id="fDeadline" data-save="deadline" value="' +
+          esc(t.deadline || '') + '"></label>' +
+      '<label class="field"><span>How long will it take?</span>' +
+        '<input type="text" id="fEstimate" data-save="estimate_min" placeholder="2h" value="' +
           esc(t.estimate_min ? niceMins(t.estimate_min) : '') + '"></label>' +
     '</div>' +
 
-    '<div class="row">' +
-      '<label class="field"><span>Tags</span>' +
-        '<input type="text" id="fTags" value="' + esc(t.tags || '') + '"></label>' +
-      '<label class="field"><span>Repeat every … days</span>' +
-        '<input type="number" id="fRecur" min="1" value="' + esc(t.recur_days || '') + '"></label>' +
-    '</div>' +
-
-    '<button class="btn primary wide" data-act="save-task" style="margin-bottom:26px">Save changes</button>' +
+    '<label class="field"><span>Repeat every … days (leave empty for a one-off)</span>' +
+      '<input type="number" id="fRecur" data-save="recur_days" min="1" value="' +
+        esc(t.recur_days || '') + '"></label>' +
 
     '<section class="block"><h3>What the app works out</h3>' +
       '<div class="derived">' + derived + '</div></section>' +
@@ -1720,12 +2018,6 @@ function sheetTask(ctx) {
 
     attachmentSection(t, ctx) +
 
-    (kids.length ? '<section class="block"><h3>Subtasks ' +
-      kids.filter(function (k) { return isDone(k); }).length + ' of ' + kids.length +
-      ' done</h3>' + kids.map(function (k) {
-        return card(decorate(k, ctx), {});
-      }).join('') + '</section>' : '') +
-
     '<section class="block"><h3>Time</h3>' +
       '<div class="row">' +
         '<button class="btn" data-act="timer">' +
@@ -1747,11 +2039,8 @@ function sheetTask(ctx) {
     '</section>' +
 
     '<section class="block">' +
-      '<div class="row">' +
-        '<button class="btn primary" data-act="toggle" data-id="' + esc(t.id) + '">' +
-          (d.status === 'done' ? 'Reopen' : 'Mark done') + '</button>' +
-        '<button class="btn" data-act="add-subtask">Add subtask</button>' +
-      '</div>' +
+      '<button class="btn primary wide" data-act="toggle" data-id="' + esc(t.id) + '">' +
+        (d.status === 'done' ? 'Reopen' : 'Mark done') + '</button>' +
       '<button class="btn danger wide" data-act="delete-task" style="margin-top:10px">Delete task</button>' +
     '</section>';
 }
@@ -1868,7 +2157,6 @@ document.addEventListener('click', function (ev) {
     enqueue('upsertTask', { id: host.id, blocked_by: deps0.join(',') });
 
     pickerFilter = '';
-    pickerEstText = '';
     toast('Added before \u201c' + host.title + '\u201d');
     render();
     return;
@@ -1877,7 +2165,6 @@ document.addEventListener('click', function (ev) {
   if (act === 'open-picker') {
     openScreen = 'picker';
     pickerFilter = '';
-    pickerEstText = '';
     render();
     return;
   }
@@ -1928,22 +2215,6 @@ document.addEventListener('click', function (ev) {
   }
 
   /* ---- task edits ---- */
-  if (act === 'save-task') {
-    var t2 = currentTask();
-    if (!t2) return;
-    var mins = readMins(val('fEstimate'));
-    enqueue('upsertTask', {
-      id: t2.id,
-      title: val('fTitle') || t2.title,
-      deadline: val('fDeadline'),
-      estimate_min: val('fEstimate') === '' ? '' : (mins || ''),
-      tags: val('fTags').toLowerCase(),
-      recur_days: val('fRecur')
-    });
-    toast('Saved');
-    return;
-  }
-
   if (act === 'save-actual') {
     var t3 = currentTask();
     if (!t3) return;
@@ -1957,27 +2228,16 @@ document.addEventListener('click', function (ev) {
     var t4 = currentTask();
     if (!t4) return;
     var ctx2 = buildContext();
-    var kids = (ctx2.childrenBy[String(t4.id)] || []).length;
     var dependents = ctx2.tasks.filter(function (o) {
       return splitIds(o.blocked_by).indexOf(String(t4.id)) !== -1;
     }).length;
     var extra = [];
-    if (kids) extra.push(plural(kids, 'subtask') + ' will lose its parent');
     if (dependents) extra.push(plural(dependents, 'task') + ' will stop waiting on it');
     if (!confirm('Delete “' + t4.title + '” and its notes and needs?' +
       (extra.length ? '\n\n' + extra.join('\n') : ''))) return;
     enqueue('deleteTask', { id: t4.id });
     openTask = null;
     toast('Deleted');
-    return;
-  }
-
-  if (act === 'add-subtask') {
-    var t5 = currentTask();
-    if (!t5) return;
-    var name = prompt('Subtask of “' + t5.title + '”');
-    if (!name || !name.trim()) return;
-    enqueue('upsertTask', { id: uuid(), title: name.trim(), parent_id: t5.id });
     return;
   }
 
@@ -2089,6 +2349,25 @@ document.addEventListener('click', function (ev) {
     return;
   }
 
+  if (act === 'order-toggle') {
+    if (orderMode === 'urgency') {
+      var ctxO = buildContext();
+      var openRows = ctxO.tasks
+        .map(function (x) { return decorate(x, ctxO); })
+        .filter(function (x) { return x.status !== 'done'; });
+      // Freeze what is currently on screen so switching does not shuffle it.
+      assignInitialOrder(orderList(openRows, 'urgency'));
+      orderMode = 'manual';
+      toast('Drag by the handle to rearrange');
+    } else {
+      orderMode = 'urgency';
+      toast('Back to urgency order');
+    }
+    rawSet('ready.order', orderMode);
+    render();
+    return;
+  }
+
   if (act === 'clear-errors') { jset(K.errors, []); render(); return; }
 });
 
@@ -2107,16 +2386,11 @@ document.getElementById('setBtn').addEventListener('click', function () {
 });
 
 document.addEventListener('input', function (ev) {
-  if (ev.target.id === 'pickerEst') {
-    pickerEstText = ev.target.value;   // remembered, no re-render needed
-    return;
-  }
   if (ev.target.id === 'pickerSearch') {
+    // Filter by hiding rows. Rebuilding the sheet here is what made typing
+    // feel like the app was reloading on every character.
     pickerFilter = ev.target.value;
-    var keep = ev.target.value;
-    render();
-    var s = document.getElementById('pickerSearch');
-    if (s) { s.value = keep; s.focus(); s.setSelectionRange(keep.length, keep.length); }
+    filterPicker();
   }
 });
 
@@ -2129,6 +2403,37 @@ document.addEventListener('change', function (ev) {
   }
   if (ev.target && ev.target.id === 'fRole') {
     attachRole = ev.target.value;
+    return;
+  }
+
+  // Task fields save themselves when you tap away. `change` fires on blur
+  // for text and number inputs, and immediately for the date picker.
+  var field = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-save');
+  if (field) {
+    var t = currentTask();
+    if (!t) return;
+    var raw = ev.target.value.trim();
+    var patch = { id: t.id };
+
+    if (field === 'title') {
+      if (!raw) { ev.target.value = t.title; return; }   // refuse to blank it
+      if (raw === t.title) return;
+      patch.title = raw;
+    } else if (field === 'estimate_min') {
+      var mins = raw === '' ? '' : (readMins(raw) || '');
+      if (String(mins) === String(t.estimate_min || '')) return;
+      patch.estimate_min = mins;
+    } else if (field === 'deadline') {
+      if (raw === String(t.deadline || '')) return;
+      patch.deadline = raw;
+    } else if (field === 'recur_days') {
+      if (raw === String(t.recur_days || '')) return;
+      patch.recur_days = raw;
+    } else {
+      return;
+    }
+
+    enqueue('upsertTask', patch);
   }
 });
 
