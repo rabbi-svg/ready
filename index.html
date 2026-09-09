@@ -1099,6 +1099,11 @@ var uploading = false;
 var previewCache = {};    // attachment id -> data URL, this session only
 var previewLoading = {};
 
+// Photos picked on the new-task screen. A photo needs a task to belong to,
+// and there is no task yet, so they wait here (already downscaled) and go up
+// with the task itself in one request when you save.
+var pendingFiles = [];
+
 function postDirect(extra) {
   var cfg = getCfg();
   if (!cfg || !cfg.url) return Promise.reject(new Error('Not connected yet'));
@@ -1194,6 +1199,25 @@ function prepareFile(file) {
   });
 }
 
+function holdFile(file) {
+  if (uploading) return;
+  uploading = true;
+  renderSheet();
+
+  prepareFile(file)
+    .then(function (prep) {
+      pendingFiles.push({
+        prep: prep,
+        url: 'data:' + prep.mime + ';base64,' + prep.base64
+      });
+    })
+    .catch(function (err) { toast(err.message || String(err), true); })
+    .then(function () {
+      uploading = false;
+      renderSheet();
+    });
+}
+
 function uploadFile(file) {
   var taskId = openTask;
   if (!taskId) return;
@@ -1246,6 +1270,34 @@ function loadPreview(id) {
       previewLoading[id] = false;
       toast(err.message || String(err), true);
     });
+}
+
+function pendingSection() {
+  return '<section class="block"><h3>Photos and files</h3>' +
+    pendingFiles.map(function (f, i) {
+      if (/^image\//.test(f.prep.mime)) {
+        return '<figure class="shot">' +
+          '<img class="thumb" src="' + f.url + '" alt="' + esc(f.prep.filename) + '">' +
+          '<button class="chip shotdel" data-act="pend-del" data-idx="' + i + '">Remove</button>' +
+        '</figure>';
+      }
+      return '<div class="filerow">' +
+        '<span class="btn grow" style="line-height:44px;text-align:center">' +
+          esc(f.prep.filename) + '</span>' +
+        '<button class="chip" data-act="pend-del" data-idx="' + i + '">Remove</button>' +
+      '</div>';
+    }).join('') +
+    (uploading
+      ? '<p class="empty" style="padding:10px 0">Saving. Photos take a few seconds.</p>'
+      : '<div class="row" style="margin-top:' + (pendingFiles.length ? '10' : '0') + 'px">' +
+          '<label class="btn" style="text-align:center;line-height:44px">Take photo' +
+            '<input type="file" accept="image/*" capture="environment" data-upload="1" hidden>' +
+          '</label>' +
+          '<label class="btn" style="text-align:center;line-height:44px">Choose file' +
+            '<input type="file" data-upload="1" hidden>' +
+          '</label>' +
+        '</div>') +
+  '</section>';
 }
 
 function attachmentSection(t, ctx) {
@@ -1741,7 +1793,8 @@ function sheetCompose() {
   return '' +
     '<header><h2>New task</h2>' +
       '<button class="btn" data-act="close">Cancel</button>' +
-      '<button class="btn primary" data-act="quick-save">Save</button></header>' +
+      '<button class="btn primary" data-act="quick-save"' + (uploading ? ' disabled' : '') + '>' +
+        (uploading ? 'Wait\u2026' : 'Save') + '</button></header>' +
     '<label class="field"><span>What needs doing?</span>' +
       '<input type="text" id="cTitle" data-autofocus placeholder="Sand the door">' +
     '</label>' +
@@ -1754,6 +1807,7 @@ function sheetCompose() {
     '<label class="field"><span>Notes</span>' +
       '<textarea id="cNotes" class="bignote" placeholder="Anything worth knowing: ' +
         'what is involved, what has to happen first, where you left off."></textarea></label>' +
+    pendingSection() +
     '<p class="empty" style="padding:0">Only the title is required.</p>';
 }
 
@@ -1890,8 +1944,97 @@ document.addEventListener('click', function (ev) {
   /* ---- navigation ---- */
   if (act === 'tab') { tab = btn.getAttribute('data-tab'); render(); return; }
   if (act === 'open') { openTask = id; openScreen = null; render(); return; }
-  if (act === 'close') { openScreen = null; openTask = null; render(); return; }
+  if (act === 'close') {
+    if (openScreen === 'compose' && pendingFiles.length &&
+        !confirm(plural(pendingFiles.length, 'photo') + ' will be discarded. Cancel anyway?')) {
+      return;
+    }
+    pendingFiles = [];
+    openScreen = null;
+    openTask = null;
+    render();
+    return;
+  }
   /* ---- completion ---- */
+  /* ---- first run ---- */
+
+  if (act === 'gate-connect') {
+    var u = val('gUrl'), tk = val('gToken');
+    if (!u || !tk) { toast('Both fields are needed', true); return; }
+    setCfg({ url: u, token: tk });
+    boot(true);
+    return;
+  }
+
+  /* ---- creating a task ---- */
+
+  if (act === 'quick-save') {
+    var title = val('cTitle');
+    if (!title) { toast('Give it a name first', true); return; }
+    if (uploading) return;
+
+    var notesEl = document.getElementById('cNotes');
+    var newId = uuid();
+    var fields = {
+      id: newId,
+      title: title,
+      deadline: val('cDeadline'),
+      estimate_min: readMins(val('cEstimate')) || '',
+      notes: notesEl ? notesEl.value : ''
+    };
+
+    // No photos: the ordinary path, which works with no signal.
+    if (!pendingFiles.length) {
+      enqueue('upsertTask', fields);
+      openScreen = null;
+      toast('Saved');
+      render();
+      return;
+    }
+
+    // With photos the task has to exist before anything can be attached to
+    // it, so both go up in one ordered request instead of the offline queue.
+    // The backend applies a batch in array order under a single lock, so the
+    // task is always there by the time the attachments are handled.
+    uploading = true;
+    renderSheet();
+
+    var muts = [{ mid: uuid(), op: 'upsertTask', data: fields }];
+    var mapped = pendingFiles.map(function (f) {
+      var attId = uuid();
+      muts.push({
+        mid: uuid(), op: 'addAttachment',
+        data: {
+          id: attId, task_id: newId, filename: f.prep.filename,
+          mime: f.prep.mime, role: 'reference', base64: f.prep.base64
+        }
+      });
+      return { id: attId, url: f.url };
+    });
+
+    postDirect({ mutations: muts })
+      .then(function (res) {
+        var bad = (res.applied || []).filter(function (a) { return a.status === 'error'; })[0];
+        if (bad) throw new Error(bad.error);
+        setServer(res.state);
+        // The images are already in memory; no need to fetch them back.
+        mapped.forEach(function (m) { previewCache[m.id] = m.url; });
+        pendingFiles = [];
+        openScreen = null;
+        toast('Saved');
+      })
+      .catch(function (err) {
+        toast(err.message || String(err), true);   // keep it all on screen to retry
+      })
+      .then(function () {
+        uploading = false;
+        render();
+      });
+    return;
+  }
+
+  /* ---- completion ---- */
+
   if (act === 'toggle') {
     var ctx = buildContext();
     var t = ctx.byId[String(id)];
@@ -1949,6 +2092,13 @@ document.addEventListener('click', function (ev) {
 
   if (act === 'file-load') { loadPreview(id); return; }
 
+  if (act === 'pend-del') {
+    var idx = parseInt(btn.getAttribute('data-idx'), 10);
+    if (idx >= 0) pendingFiles.splice(idx, 1);
+    renderSheet();
+    return;
+  }
+
   if (act === 'file-del') {
     if (!confirm('Remove this file? It goes to the trash in your Drive.')) return;
     delete previewCache[id];
@@ -1990,6 +2140,7 @@ document.addEventListener('click', function (ev) {
 document.getElementById('fab').addEventListener('click', function () {
   openScreen = 'compose';
   openTask = null;
+  pendingFiles = [];
   render();
 });
 
@@ -2008,7 +2159,10 @@ document.addEventListener('change', function (ev) {
   if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-upload')) {
     var file = ev.target.files && ev.target.files[0];
     ev.target.value = '';   // so picking the same file twice still fires
-    if (file) uploadFile(file);
+    if (file) {
+      if (openScreen === 'compose') holdFile(file);
+      else uploadFile(file);
+    }
     return;
   }
   // Task fields save themselves when you tap away. `change` fires on blur
@@ -2051,6 +2205,7 @@ document.addEventListener('keydown', function (ev) {
     if (b) b.click();
   }
   if (ev.key === 'Escape' && (openScreen || openTask)) {
+    if (openScreen === 'compose' && pendingFiles.length) return;
     openScreen = null;
     openTask = null;
     render();
