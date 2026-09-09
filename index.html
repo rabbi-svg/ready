@@ -158,9 +158,9 @@ header.bar h1 {
   background: transparent;
 }
 
-.card[data-risk="late"]        .edge { background: var(--oxblood); }
-.card[data-risk="at_risk"]     .edge { background: var(--rust); }
-.card[data-risk="start_today"] .edge { background: var(--amber); }
+.card[data-risk="late"]  .edge { background: var(--oxblood); }
+.card[data-risk="today"] .edge { background: var(--rust); }
+.card[data-risk="soon"]  .edge { background: var(--amber); }
 
 .card .body {
   flex: 1;
@@ -189,9 +189,9 @@ header.bar h1 {
   letter-spacing: -0.005em;
 }
 
-.signal[data-risk="late"]        { color: var(--oxblood); }
-.signal[data-risk="at_risk"]     { color: var(--rust); }
-.signal[data-risk="start_today"] { color: var(--amber); }
+.signal[data-risk="late"]  { color: var(--oxblood); }
+.signal[data-risk="today"] { color: var(--rust); }
+.signal[data-risk="soon"]  { color: var(--amber); }
 
 .meta {
   margin: 4px 0 0;
@@ -488,6 +488,18 @@ ul.plain li .age { color: var(--faint); font-size: 12.5px; white-space: nowrap; 
 }
 
 .preview b { color: var(--ink); font-weight: 600; }
+
+.thumb {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  background: var(--sunk);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+label.btn { cursor: pointer; }
 
 .toast {
   position: fixed;
@@ -792,10 +804,9 @@ function buildContext() {
     today: today(),
     tasks: s.tasks.filter(function (t) { return t.archived !== true && t.archived !== 'TRUE'; }),
     settings: s.settings,
-    capacity: Math.max(1, parseInt(s.settings.daily_capacity_min, 10) || 240),
     defaultEst: Math.max(1, parseInt(s.settings.default_estimate_min, 10) || 30),
     staleDays: Math.max(1, parseInt(s.settings.stale_days, 10) || 7),
-    byId: {}, needsBy: {}, notesBy: {}, childrenBy: {}
+    byId: {}, needsBy: {}, notesBy: {}, childrenBy: {}, attachBy: {}, dependentsBy: {}
   };
 
   ctx.tasks.forEach(function (t) { ctx.byId[String(t.id)] = t; });
@@ -809,13 +820,24 @@ function buildContext() {
   s.notes.forEach(function (n) {
     (ctx.notesBy[String(n.task_id)] = ctx.notesBy[String(n.task_id)] || []).push(n);
   });
+  s.attachments.forEach(function (a) {
+    (ctx.attachBy[String(a.task_id)] = ctx.attachBy[String(a.task_id)] || []).push(a);
+  });
   Object.keys(ctx.notesBy).forEach(function (k) {
     ctx.notesBy[k].sort(function (a, b) {
       return String(b.created_at).localeCompare(String(a.created_at));
     });
   });
 
-  ctx.chainMemo = {};
+  // Which tasks are waiting on this one. Deadline pressure travels along
+  // these edges, backwards from the task that has the date.
+  ctx.tasks.forEach(function (t) {
+    splitIds(t.blocked_by).forEach(function (dep) {
+      if (ctx.byId[dep]) (ctx.dependentsBy[dep] = ctx.dependentsBy[dep] || []).push(t);
+    });
+  });
+
+  ctx.deadlineMemo = {};
   return ctx;
 }
 
@@ -840,72 +862,75 @@ function statusOf(t, ctx) {
   return 'ready';
 }
 
-// Longest path of unfinished work standing between now and this task
-// being finishable, its own estimate included. The `seen` set is what
-// stops a dependency cycle from hanging the app.
-function chainMins(t, ctx, seen) {
-  if (!t || isDone(t)) return 0;
+// A task's real deadline is its own, or the earliest deadline of anything
+// waiting on it. Sanding the door has no date of its own, but painting does,
+// and painting cannot start until sanding is finished — so sanding inherits
+// it. `from` records which task lent the date, so the list can say why.
+function effDeadline(t, ctx, seen) {
+  if (!t) return { date: '', from: null };
   var id = String(t.id);
+  var top = !seen;
+
+  if (top && ctx.deadlineMemo[id]) return ctx.deadlineMemo[id];
+
   seen = seen || {};
-  if (seen[id]) return Number(t.estimate_min) || ctx.defaultEst;
-  if (ctx.chainMemo[id] !== undefined && Object.keys(seen).length === 0) {
-    return ctx.chainMemo[id];
-  }
+  if (seen[id]) return { date: t.deadline || '', from: null };  // cycle guard
 
   var mine = {};
   Object.keys(seen).forEach(function (k) { mine[k] = true; });
   mine[id] = true;
 
-  var own = Number(t.estimate_min) || ctx.defaultEst;
-  var worst = 0;
-  openPrereqs(t, ctx).forEach(function (p) {
-    var v = chainMins(p, ctx, mine);
-    if (v > worst) worst = v;
+  var best = t.deadline ? { date: t.deadline, from: null } : null;
+
+  (ctx.dependentsBy[id] || []).forEach(function (dep) {
+    if (isDone(dep)) return;
+    var theirs = effDeadline(dep, ctx, mine);
+    if (theirs.date && (!best || theirs.date < best.date)) {
+      best = { date: theirs.date, from: dep };
+    }
   });
 
-  var total = own + worst;
-  if (Object.keys(seen).length === 0) ctx.chainMemo[id] = total;
-  return total;
+  var out = best || { date: '', from: null };
+  if (top) ctx.deadlineMemo[id] = out;
+  return out;
 }
 
 function decorate(t, ctx) {
   var status = statusOf(t, ctx);
-  var chain = chainMins(t, ctx);
-  var days = Math.max(1, Math.ceil(chain / ctx.capacity));
-  var latestStart = t.deadline ? shiftDay(t.deadline, -(days - 1)) : '';
+  var eff = effDeadline(t, ctx);
   var risk = 'ok';
 
-  if (status !== 'done' && t.deadline) {
-    if (dayGap(t.deadline, ctx.today) > 0) risk = 'late';
-    else {
-      var slack = dayGap(latestStart, ctx.today);
-      if (slack > 0) risk = 'at_risk';
-      else if (slack === 0) risk = 'start_today';
-    }
+  if (status !== 'done' && eff.date) {
+    var gap = dayGap(ctx.today, eff.date);
+    if (gap < 0) risk = 'late';
+    else if (gap === 0) risk = 'today';
+    else if (gap <= 2) risk = 'soon';
   }
 
   var notes = ctx.notesBy[String(t.id)] || [];
   var lastTouch = notes.length ? notes[0].created_at : t.created_at;
 
   return {
-    task: t, status: status, chain: chain, daysNeeded: days,
-    latestStart: latestStart, risk: risk,
+    task: t, status: status,
+    deadline: eff.date, deadlineFrom: eff.from,
+    risk: risk,
     prereqs: openPrereqs(t, ctx), needs: openNeeds(t, ctx),
     noteCount: notes.length,
-    stale: status === 'ready' && !!t.deadline && ageInDays(lastTouch) >= ctx.staleDays,
+    fileCount: (ctx.attachBy[String(t.id)] || []).length,
+    stale: status === 'ready' && !!eff.date && ageInDays(lastTouch) >= ctx.staleDays,
     lastTouch: lastTouch
   };
 }
 
-var RISK_RANK = { late: 0, at_risk: 1, start_today: 2, ok: 3 };
+var RISK_RANK = { late: 0, today: 1, soon: 2, ok: 3 };
 
 function sortReady(a, b) {
   var r = RISK_RANK[a.risk] - RISK_RANK[b.risk];
   if (r) return r;
-  if (a.task.deadline !== b.task.deadline) {
-    if (!a.task.deadline) return 1;
-    if (!b.task.deadline) return -1;
-    return String(a.task.deadline).localeCompare(String(b.task.deadline));
+  if (a.deadline !== b.deadline) {
+    if (!a.deadline) return 1;
+    if (!b.deadline) return -1;
+    return String(a.deadline).localeCompare(String(b.deadline));
   }
   var ea = Number(a.task.estimate_min) || 1e9;
   var eb = Number(b.task.estimate_min) || 1e9;
@@ -914,14 +939,12 @@ function sortReady(a, b) {
 }
 
 function riskSentence(d) {
-  if (d.risk === 'late') {
-    var over = dayGap(d.task.deadline, d.task ? today() : '');
-    return over === 0 ? 'Due today' : 'Late by ' + plural(over, 'day');
-  }
-  if (d.risk === 'at_risk') {
-    return 'Needed to start ' + plural(dayGap(d.latestStart, today()), 'day') + ' ago';
-  }
-  if (d.risk === 'start_today') return 'Start today';
+  if (d.status === 'done' || !d.deadline) return '';
+  var gap = dayGap(today(), d.deadline);
+  if (gap < 0) return 'Overdue by ' + plural(-gap, 'day');
+  if (gap === 0) return 'Due today';
+  if (gap === 1) return 'Due tomorrow';
+  if (gap <= 2) return 'Due in ' + plural(gap, 'day');
   return '';
 }
 
@@ -1009,64 +1032,8 @@ function sync(loud) {
 }
 
 /* ================================================================
-   quick capture shorthand
+   estimate parsing
    ================================================================ */
-
-function parseQuick(raw) {
-  var text = ' ' + String(raw) + ' ';
-  var out = { title: '', deadline: '', estimate_min: '', tags: [], needs: [] };
-
-  // Stop at a comma (the separator between needs) or at any other
-  // shorthand marker, and swallow the separator so it does not strand
-  // itself in the title.
-  text = text.replace(/>([^,>!~#]+),?/g, function (_, body) {
-    var label = body.trim();
-    if (label) out.needs.push(label);
-    return ' ';
-  });
-
-  text = text.replace(/\s!(\S+)/g, function (whole, token) {
-    var d = readDate(token);
-    if (!d) return whole;
-    out.deadline = d;
-    return ' ';
-  });
-
-  text = text.replace(/\s~(\S+)/g, function (whole, token) {
-    var m = readMins(token);
-    if (!m) return whole;
-    out.estimate_min = m;
-    return ' ';
-  });
-
-  text = text.replace(/\s#(\S+)/g, function (whole, token) {
-    out.tags.push(token.toLowerCase());
-    return ' ';
-  });
-
-  out.title = text.replace(/\s+/g, ' ').trim();
-  return out;
-}
-
-function readDate(token) {
-  var t = String(token).toLowerCase();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  if (t === 'today' || t === 'tod') return today();
-  if (t === 'tomorrow' || t === 'tmr' || t === 'tom') return shiftDay(today(), 1);
-
-  var rel = t.match(/^(\d+)d$/);
-  if (rel) return shiftDay(today(), parseInt(rel[1], 10));
-
-  var names = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
-  var key = t.slice(0, 3);
-  if (names[key] !== undefined) {
-    var want = names[key];
-    var have = new Date().getDay();
-    var ahead = (want - have + 7) % 7;   // same weekday means today
-    return shiftDay(today(), ahead);
-  }
-  return '';
-}
 
 function readMins(token) {
   var t = String(token).toLowerCase().trim();
@@ -1077,6 +1044,218 @@ function readMins(token) {
   m = t.match(/^(\d+)$/);
   if (m) return parseInt(m[1], 10);
   return '';
+}
+
+/* ================================================================
+   attachments
+
+   These do not go through the outbox. A phone photo is hundreds of
+   kilobytes, browser storage holds about five megabytes in total, and
+   one queued image could push out every other unsent change. So an
+   upload needs a live connection and either succeeds or reports why.
+   ================================================================ */
+
+var uploading = false;
+var attachRole = 'reference';
+var previewCache = {};   // attachment id -> data URL, this session only
+var previewOpen = {};
+
+function postDirect(extra) {
+  var cfg = getCfg();
+  if (!cfg || !cfg.url) return Promise.reject(new Error('Not connected yet'));
+
+  return fetch(cfg.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ token: cfg.token }, extra))
+  })
+    .then(function (r) { return r.text(); })
+    .then(function (text) {
+      var res;
+      try { res = JSON.parse(text); }
+      catch (e) { throw new Error('Server sent something that was not JSON'); }
+      if (!res.ok) throw new Error(res.error || 'Server refused the request');
+      return res;
+    });
+}
+
+function readAsBase64(blobOrFile) {
+  return new Promise(function (resolve, reject) {
+    var r = new FileReader();
+    r.onload = function () {
+      var s = String(r.result);
+      var comma = s.indexOf(',');
+      resolve(comma >= 0 ? s.slice(comma + 1) : s);
+    };
+    r.onerror = function () { reject(new Error('Could not read that file')); };
+    r.readAsDataURL(blobOrFile);
+  });
+}
+
+// Phone cameras produce 3-8MB files. Base64 adds a third on top of that,
+// and the whole thing has to survive a round trip through Apps Script.
+function prepareFile(file) {
+  var isImage = /^image\//.test(file.type || '');
+
+  if (!isImage) {
+    if (file.size > 10 * 1024 * 1024) {
+      return Promise.reject(new Error(
+        'That file is ' + Math.round(file.size / 1048576) + 'MB. ' +
+        'The limit for non-images is 10MB.'));
+    }
+    return readAsBase64(file).then(function (b64) {
+      return {
+        base64: b64,
+        filename: file.name || 'file',
+        mime: file.type || 'application/octet-stream'
+      };
+    });
+  }
+
+  return new Promise(function (resolve, reject) {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      try {
+        var maxEdge = 1600;
+        var scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        var w = Math.max(1, Math.round(img.width * scale));
+        var h = Math.max(1, Math.round(img.height * scale));
+
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        resolve({
+          base64: dataUrl.slice(dataUrl.indexOf(',') + 1),
+          filename: (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg',
+          mime: 'image/jpeg'
+        });
+      } catch (e) {
+        reject(new Error('Could not process that image'));
+      }
+    };
+
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      reject(new Error('That does not look like an image the browser can read'));
+    };
+
+    img.src = url;
+  });
+}
+
+function uploadFile(file) {
+  var taskId = openTask;
+  if (!taskId) return;
+  if (uploading) { toast('One upload at a time', true); return; }
+
+  uploading = true;
+  render();
+
+  prepareFile(file)
+    .then(function (p) {
+      return postDirect({
+        mutations: [{
+          mid: uuid(),
+          op: 'addAttachment',
+          data: {
+            id: uuid(), task_id: taskId, filename: p.filename,
+            mime: p.mime, role: attachRole, base64: p.base64
+          }
+        }]
+      });
+    })
+    .then(function (res) {
+      var problem = (res.applied || []).filter(function (a) { return a.status === 'error'; })[0];
+      if (problem) throw new Error(problem.error);
+      setServer(res.state);
+      toast('Attached');
+    })
+    .catch(function (err) {
+      toast(err.message || String(err), true);
+    })
+    .then(function () {
+      uploading = false;
+      render();
+    });
+}
+
+function viewAttachment(id) {
+  if (previewCache[id]) { previewOpen[id] = !previewOpen[id]; render(); return; }
+
+  previewOpen[id] = true;
+  render();
+
+  postDirect({ get_attachment: id })
+    .then(function (res) {
+      previewCache[id] = 'data:' + res.mime + ';base64,' + res.base64;
+      render();
+    })
+    .catch(function (err) {
+      previewOpen[id] = false;
+      toast(err.message || String(err), true);
+      render();
+    });
+}
+
+function attachmentSection(t, ctx) {
+  var files = ctx.attachBy[String(t.id)] || [];
+
+  var rows = files.map(function (a) {
+    var isImage = /^image\//.test(a.mime || '');
+    var open = previewOpen[a.id];
+    var cached = previewCache[a.id];
+
+    var body = '';
+    if (open) {
+      if (!cached) body = '<p class="empty" style="padding:8px 0">Loading…</p>';
+      else if (isImage) body = '<img class="thumb" src="' + cached + '" alt="' + esc(a.filename) + '">';
+      else body = '<a class="btn wide" style="display:block;text-align:center;text-decoration:none" ' +
+        'href="' + cached + '" download="' + esc(a.filename) + '">Download ' + esc(a.filename) + '</a>';
+    }
+
+    return '<li style="display:block">' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+        '<button class="check" data-act="file-view" data-id="' + esc(a.id) + '" ' +
+          'title="' + (open ? 'Hide' : 'View') + '">' + (isImage ? '&#9635;' : '&#9679;') + '</button>' +
+        '<span class="grow">' + esc(a.filename) +
+          '<br><span class="age">' + esc(a.role) + '</span></span>' +
+        '<button class="chip" data-act="file-del" data-id="' + esc(a.id) + '">Remove</button>' +
+      '</div>' +
+      (body ? '<div style="margin-top:10px">' + body + '</div>' : '') +
+    '</li>';
+  }).join('');
+
+  return '<section class="block"><h3>Photos and files</h3>' +
+    (files.length
+      ? '<ul class="plain">' + rows + '</ul>'
+      : '<p class="empty" style="padding:0 0 8px">Nothing attached.</p>') +
+    (uploading
+      ? '<p class="empty" style="padding:10px 0">Uploading. Large photos take a few seconds.</p>'
+      : '<div class="row" style="margin-top:10px">' +
+          '<label class="btn" style="text-align:center;line-height:44px">Take photo' +
+            '<input type="file" accept="image/*" capture="environment" data-upload="1" hidden>' +
+          '</label>' +
+          '<label class="btn" style="text-align:center;line-height:44px">Choose file' +
+            '<input type="file" data-upload="1" hidden>' +
+          '</label>' +
+        '</div>' +
+        '<label class="field" style="margin-top:10px"><span>Attach as</span>' +
+          '<select id="fRole">' +
+            ['reference', 'input', 'proof', 'other'].map(function (r) {
+              return '<option value="' + r + '"' + (attachRole === r ? ' selected' : '') + '>' +
+                ({ reference: 'Reference — something to look at',
+                   input: 'Input — something needed to do the work',
+                   proof: 'Proof — evidence it is done',
+                   other: 'Other' })[r] + '</option>';
+            }).join('') +
+          '</select></label>') +
+  '</section>';
 }
 
 /* ================================================================
@@ -1111,12 +1290,13 @@ function card(d, opts) {
   var t = d.task;
   var bits = [];
 
-  if (t.deadline) bits.push('<time>due ' + esc(niceDate(t.deadline)) + '</time>');
+  if (d.deadline) bits.push('<time>due ' + esc(niceDate(d.deadline)) + '</time>');
   if (t.estimate_min) bits.push('<span>' + esc(niceMins(t.estimate_min)) + '</span>');
-  if (d.chain > (Number(t.estimate_min) || 0) && d.status === 'blocked') {
-    bits.push('<span>' + esc(niceMins(d.chain)) + ' of work in the chain</span>');
+  if (d.deadlineFrom) {
+    bits.push('<span>needed for ' + esc(d.deadlineFrom.title) + '</span>');
   }
   if (d.noteCount) bits.push('<span>' + plural(d.noteCount, 'note') + '</span>');
+  if (d.fileCount) bits.push('<span>' + plural(d.fileCount, 'file') + '</span>');
   if (d.stale) bits.push('<span>untouched ' + plural(ageInDays(d.lastTouch), 'day') + '</span>');
   if (opts.extra) bits.push('<span>' + esc(opts.extra) + '</span>');
 
@@ -1185,7 +1365,7 @@ function renderTabs(ready, blocked, waiting, done) {
     soon: 0, done: done.length
   };
   counts.soon = ready.concat(blocked, waiting).filter(function (d) {
-    return d.task.deadline;
+    return d.deadline;
   }).length;
 
   document.getElementById('tabs').innerHTML = TABS.map(function (t) {
@@ -1199,9 +1379,8 @@ function renderTabs(ready, blocked, waiting, done) {
 function viewNow(ready, blocked, waiting, ctx) {
   if (!ctx.tasks.length) {
     return '<p class="empty"><strong>Nothing here yet.</strong><br>' +
-      'Tap + and type what you need to do. You can add a deadline and an ' +
-      'estimate in the same line: <br><br>' +
-      'fix the sink !fri ~2h #plumbing &gt;washer</p>';
+      'Tap + to add the first task. A name is enough; a deadline and a rough ' +
+      'time make the list sort itself.</p>';
   }
 
   if (!ready.length) {
@@ -1214,16 +1393,15 @@ function viewNow(ready, blocked, waiting, ctx) {
         : 'Everything is done.') + '</p>';
   }
 
-  var urgent = ready.filter(function (d) { return d.risk !== 'ok'; });
+  var overdue = ready.filter(function (d) { return d.risk === 'late'; }).length;
+  var dueToday = ready.filter(function (d) { return d.risk === 'today'; }).length;
   var lede;
-  if (!urgent.length) {
-    lede = plural(ready.length, 'thing') + ' ready, nothing pressing.';
-  } else if (urgent.length === 1) {
-    lede = riskSentence(urgent[0]).toLowerCase().indexOf('start') === 0
-      ? 'One thing needs starting today.'
-      : 'One thing has slipped past its start date.';
+  if (overdue) {
+    lede = plural(overdue, 'thing') + ' overdue.';
+  } else if (dueToday) {
+    lede = plural(dueToday, 'thing') + ' due today.';
   } else {
-    lede = plural(urgent.length, 'thing') + ' need attention today.';
+    lede = plural(ready.length, 'thing') + ' ready, nothing pressing.';
   }
 
   return '<p class="lede">' + esc(lede) + '</p>' +
@@ -1285,7 +1463,7 @@ function viewWaiting(waiting, ctx) {
 }
 
 function viewSoon(all, ctx) {
-  var dated = all.filter(function (d) { return d.status !== 'done' && d.task.deadline; });
+  var dated = all.filter(function (d) { return d.status !== 'done' && d.deadline; });
   if (!dated.length) {
     return '<p class="empty"><strong>No deadlines set.</strong><br>' +
       'Add one to a task and it will appear here, along with the date you ' +
@@ -1293,7 +1471,7 @@ function viewSoon(all, ctx) {
   }
 
   dated.sort(function (a, b) {
-    return String(a.task.deadline).localeCompare(String(b.task.deadline));
+    return String(a.deadline).localeCompare(String(b.deadline));
   });
 
   var buckets = [
@@ -1304,7 +1482,7 @@ function viewSoon(all, ctx) {
   ];
 
   dated.forEach(function (d) {
-    var gap = dayGap(ctx.today, d.task.deadline);
+    var gap = dayGap(ctx.today, d.deadline);
     if (gap < 0) buckets[0].list.push(d);
     else if (gap === 0) buckets[1].list.push(d);
     else if (gap <= 7) buckets[2].list.push(d);
@@ -1371,18 +1549,16 @@ function sheetCompose() {
       '<button class="btn" data-act="close">Cancel</button>' +
       '<button class="btn primary" data-act="quick-save">Save</button></header>' +
     '<label class="field"><span>What needs doing?</span>' +
-      '<input type="text" id="quickInput" data-autofocus placeholder="fix the sink !fri ~2h #plumbing &gt;washer">' +
+      '<input type="text" id="cTitle" data-autofocus placeholder="Sand the door">' +
     '</label>' +
-    '<p class="preview" id="quickPreview"></p>' +
-    '<section class="block"><h3>Shorthand</h3>' +
-      '<ul class="plain">' +
-        '<li><span class="grow">!fri, !tomorrow, !3d, !2026-10-03</span><span class="age">deadline</span></li>' +
-        '<li><span class="grow">~30m, ~2h, ~1.5h</span><span class="age">estimate</span></li>' +
-        '<li><span class="grow">#garage</span><span class="age">tag</span></li>' +
-        '<li><span class="grow">&gt;3mm washer</span><span class="age">still needed</span></li>' +
-      '</ul>' +
-      '<p class="empty" style="padding:12px 0 0">All optional. A plain title works.</p>' +
-    '</section>';
+    '<div class="row">' +
+      '<label class="field"><span>Deadline</span>' +
+        '<input type="date" id="cDeadline"></label>' +
+      '<label class="field"><span>How long will it take?</span>' +
+        '<input type="text" id="cEstimate" placeholder="2h"></label>' +
+    '</div>' +
+    '<p class="empty" style="padding:0">Both optional. If something else is ' +
+      'waiting on this task, it picks up that deadline on its own.</p>';
 }
 
 function sheetPicker(ctx) {
@@ -1428,17 +1604,20 @@ function sheetTask(ctx) {
 
   var derived = '<p><span class="stat">' + esc(statusWord) + '</span></p>';
   if (d.status !== 'done') {
-    if (d.chain > (Number(t.estimate_min) || 0)) {
-      derived += '<p><span class="stat">' + esc(niceMins(d.chain)) +
-        '</span> of work including everything that comes first</p>';
-    }
-    if (t.deadline) {
-      derived += '<p>Due <span class="stat">' + esc(niceDate(t.deadline)) + '</span>, ' +
-        'so start by <span class="stat">' + esc(niceDate(d.latestStart)) + '</span></p>';
-      var s = riskSentence(d);
-      if (s) derived += '<p><span class="stat">' + esc(s) + '</span></p>';
+    if (d.deadlineFrom) {
+      derived += '<p>No deadline of its own, but <span class="stat">' +
+        esc(d.deadlineFrom.title) + '</span> is waiting on it and is due ' +
+        '<span class="stat">' + esc(niceDate(d.deadline)) + '</span></p>';
+    } else if (d.deadline) {
+      derived += '<p>Due <span class="stat">' + esc(niceDate(d.deadline)) + '</span></p>';
     } else {
-      derived += '<p>No deadline, so nothing to be late for</p>';
+      derived += '<p>No deadline, and nothing waiting on it</p>';
+    }
+    var s = riskSentence(d);
+    if (s) derived += '<p><span class="stat">' + esc(s) + '</span></p>';
+    if (d.prereqs.length) {
+      derived += '<p>Cannot start until ' + esc(plural(d.prereqs.length, 'task')) +
+        ' ahead of it is finished</p>';
     }
   } else if (t.actual_min) {
     derived += '<p>Took <span class="stat">' + esc(niceMins(t.actual_min)) + '</span>' +
@@ -1503,6 +1682,8 @@ function sheetTask(ctx) {
       '</div>' +
     '</section>' +
 
+    attachmentSection(t, ctx) +
+
     (kids.length ? '<section class="block"><h3>Subtasks ' +
       kids.filter(function (k) { return isDone(k); }).length + ' of ' + kids.length +
       ' done</h3>' + kids.map(function (k) {
@@ -1548,13 +1729,8 @@ function sheetSettings(ctx) {
   return '' +
     '<header><h2>Setup</h2><button class="btn" data-act="close">Close</button></header>' +
 
-    '<section class="block"><h3>How much time you have</h3>' +
-      '<label class="field"><span>Hours you can actually give this on a normal day</span>' +
-        '<input type="number" id="sCapacity" min="1" max="24" step="0.5" value="' +
-          (Math.round((ctx.capacity / 60) * 10) / 10) + '"></label>' +
-      '<p class="empty" style="padding:0 0 10px">This is what turns an estimate into a ' +
-        'start date. Four hours is a realistic default for work squeezed around other things.</p>' +
-      '<label class="field"><span>Nudge me about a task untouched for … days</span>' +
+    '<section class="block"><h3>Nudges</h3>' +
+      '<label class="field"><span>Flag a task untouched for … days</span>' +
         '<input type="number" id="sStale" min="1" max="90" value="' + ctx.staleDays + '"></label>' +
       '<button class="btn primary wide" data-act="save-settings">Save</button>' +
     '</section>' +
@@ -1643,17 +1819,13 @@ document.addEventListener('click', function (ev) {
 
   /* ---- capture ---- */
   if (act === 'quick-save') {
-    var text = val('quickInput');
-    if (!text) { toast('Type something first', true); return; }
-    var p = parseQuick(text);
-    if (!p.title) { toast('That needs a title too', true); return; }
-    var newId = uuid();
+    var title = val('cTitle');
+    if (!title) { toast('Give it a name first', true); return; }
     enqueue('upsertTask', {
-      id: newId, title: p.title, deadline: p.deadline,
-      estimate_min: p.estimate_min, tags: p.tags.join(',')
-    });
-    p.needs.forEach(function (label) {
-      enqueue('upsertNeed', { id: uuid(), task_id: newId, label: label });
+      id: uuid(),
+      title: title,
+      deadline: val('cDeadline'),
+      estimate_min: readMins(val('cEstimate')) || ''
     });
     openScreen = null;
     toast('Saved');
@@ -1730,11 +1902,7 @@ document.addEventListener('click', function (ev) {
     if (!t5) return;
     var name = prompt('Subtask of “' + t5.title + '”');
     if (!name || !name.trim()) return;
-    var p2 = parseQuick(name.trim());
-    enqueue('upsertTask', {
-      id: uuid(), title: p2.title || name.trim(), parent_id: t5.id,
-      deadline: p2.deadline, estimate_min: p2.estimate_min, tags: p2.tags.join(',')
-    });
+    enqueue('upsertTask', { id: uuid(), title: name.trim(), parent_id: t5.id });
     return;
   }
 
@@ -1790,6 +1958,17 @@ document.addEventListener('click', function (ev) {
 
   if (act === 'need-del') { enqueue('deleteNeed', { id: id }); return; }
 
+  if (act === 'file-view') { viewAttachment(id); return; }
+
+  if (act === 'file-del') {
+    if (!confirm('Remove this file? It goes to the trash in your Drive.')) return;
+    delete previewCache[id];
+    delete previewOpen[id];
+    enqueue('deleteAttachment', { id: id });
+    toast('Removed');
+    return;
+  }
+
   /* ---- notes and timer ---- */
   if (act === 'add-note') {
     var t9 = currentTask();
@@ -1822,11 +2001,9 @@ document.addEventListener('click', function (ev) {
 
   /* ---- settings ---- */
   if (act === 'save-settings') {
-    var hours = parseFloat(val('sCapacity'));
     var stale = parseInt(val('sStale'), 10);
-    if (!(hours > 0)) { toast('Hours must be more than zero', true); return; }
-    enqueue('setSetting', { key: 'daily_capacity_min', value: String(Math.round(hours * 60)) });
-    if (stale > 0) enqueue('setSetting', { key: 'stale_days', value: String(stale) });
+    if (!(stale > 0)) { toast('That needs to be at least one day', true); return; }
+    enqueue('setSetting', { key: 'stale_days', value: String(stale) });
     toast('Saved');
     return;
   }
@@ -1855,20 +2032,6 @@ document.getElementById('setBtn').addEventListener('click', function () {
 });
 
 document.addEventListener('input', function (ev) {
-  if (ev.target.id === 'quickInput') {
-    var p = parseQuick(ev.target.value);
-    var out = [];
-    if (p.deadline) out.push('due <b>' + esc(niceDate(p.deadline)) + '</b>');
-    if (p.estimate_min) out.push('<b>' + esc(niceMins(p.estimate_min)) + '</b>');
-    if (p.tags.length) out.push('tagged <b>' + esc(p.tags.join(', ')) + '</b>');
-    if (p.needs.length) out.push('needs <b>' + esc(p.needs.join(', ')) + '</b>');
-    var el = document.getElementById('quickPreview');
-    if (el) {
-      el.innerHTML = out.length
-        ? esc(p.title || '(no title yet)') + ' — ' + out.join(', ')
-        : '';
-    }
-  }
   if (ev.target.id === 'pickerSearch') {
     pickerFilter = ev.target.value;
     var keep = ev.target.value;
@@ -1878,8 +2041,20 @@ document.addEventListener('input', function (ev) {
   }
 });
 
+document.addEventListener('change', function (ev) {
+  if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-upload')) {
+    var file = ev.target.files && ev.target.files[0];
+    ev.target.value = '';   // so picking the same file twice still fires
+    if (file) uploadFile(file);
+    return;
+  }
+  if (ev.target && ev.target.id === 'fRole') {
+    attachRole = ev.target.value;
+  }
+});
+
 document.addEventListener('keydown', function (ev) {
-  if (ev.key === 'Enter' && ev.target.id === 'quickInput') {
+  if (ev.key === 'Enter' && ev.target.id === 'cTitle') {
     ev.preventDefault();
     var b = document.querySelector('[data-act="quick-save"]');
     if (b) b.click();
