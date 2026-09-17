@@ -209,7 +209,7 @@ header.bar h1 {
 }
 
 .tick {
-  flex: 0 0 52px;
+  flex: 0 0 48px;
   background: none;
   border: 0;
   border-left: 1px solid var(--rule);
@@ -507,7 +507,7 @@ ul.plain li .age { color: var(--faint); font-size: 12.5px; white-space: nowrap; 
 }
 
 .grip {
-  flex: 0 0 46px;
+  flex: 0 0 38px;
   background: none;
   border: 0;
   border-left: 1px solid var(--rule);
@@ -1504,13 +1504,14 @@ function card(d, opts) {
         gate +
         (bits.length ? '<p class="meta">' + bits.join('') + '</p>' : '') +
       '</button>' +
+      '<button class="tick' + (d.status === 'done' ? ' on' : '') + '" data-act="toggle" ' +
+        'data-id="' + esc(t.id) + '" title="Mark done">' +
+        (d.status === 'done' ? '&#10003;' : '&#9711;') +
+      '</button>' +
       (opts.drag
         ? '<button class="grip" data-grip="' + esc(t.id) + '" ' +
             'aria-label="Move ' + esc(t.title || 'task') + '">&#8942;&#8942;</button>'
-        : '<button class="tick' + (d.status === 'done' ? ' on' : '') + '" data-act="toggle" ' +
-            'data-id="' + esc(t.id) + '" title="Mark done">' +
-            (d.status === 'done' ? '&#10003;' : '&#9711;') +
-          '</button>') +
+        : '') +
     '</article>';
 }
 
@@ -1596,15 +1597,7 @@ function viewAll(open, ctx) {
 
   var rows = orderList(open);
 
-  var overdue = open.filter(function (d) { return d.risk === 'late'; }).length;
-  var dueToday = open.filter(function (d) { return d.risk === 'today'; }).length;
-  var lede;
-  if (overdue) lede = plural(overdue, 'thing') + ' overdue.';
-  else if (dueToday) lede = plural(dueToday, 'thing') + ' due today.';
-  else lede = plural(open.length, 'thing') + ' open, nothing pressing.';
-
-  return '<p class="lede">' + esc(lede) + '</p>' +
-    '<div id="tasklist">' +
+  return '<div id="tasklist">' +
       rows.map(function (d) { return card(d, { drag: true }); }).join('') +
     '</div>';
 }
