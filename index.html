@@ -1013,6 +1013,7 @@ function riskSentence(d) {
    ================================================================ */
 
 var syncing = false;
+var syncQueued = false;
 var syncTimer = null;
 var lastNetError = '';
 
@@ -1023,9 +1024,15 @@ function scheduleSync() {
 
 function sync(loud) {
   var cfg = getCfg();
-  if (!cfg || !cfg.url || syncing) return Promise.resolve();
+  if (!cfg || !cfg.url) return Promise.resolve();
+
+  // Changes made while a sync is in flight used to be dropped and never
+  // retried, so the "not yet saved" banner stayed up until you did something
+  // else. Now they queue and go straight after.
+  if (syncing) { syncQueued = true; return Promise.resolve(); }
 
   syncing = true;
+  var quiet = false;
   document.getElementById('syncBtn').setAttribute('data-busy', '1');
 
   var box = getOutbox();
@@ -1055,8 +1062,10 @@ function sync(loud) {
         settled[a.mid] = true;
         if (a.status === 'error') pushError((a.op || 'change') + ': ' + a.error);
       });
+      var before = rawGet(K.server);
       setOutbox(getOutbox().filter(function (m) { return !settled[m.mid]; }));
       setServer(res.state);
+      quiet = (before === rawGet(K.server)) && !Object.keys(settled).length;
       lastNetError = '';
       if (loud) toast('Up to date');
     })
@@ -1067,7 +1076,8 @@ function sync(loud) {
     .then(function () {
       syncing = false;
       document.getElementById('syncBtn').removeAttribute('data-busy');
-      render();
+      if (!quiet) render();
+      if (syncQueued) { syncQueued = false; scheduleSync(); }
     });
 }
 
@@ -1517,6 +1527,13 @@ document.addEventListener('pointermove', function (ev) {
   if (drag) { ev.preventDefault(); moveDrag(ev); }
 }, { passive: false });
 
+// Anything deferred while a field had focus happens once it loses it.
+document.addEventListener('focusout', function () {
+  setTimeout(function () {
+    if (sheetDirty && !isEditing()) renderSheet();
+  }, 0);
+});
+
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);
 
@@ -1745,8 +1762,25 @@ function viewDone(done, ctx) {
 
 /* ---------------- sheets ---------------- */
 
+var sheetDirty = false;
+
+function isEditing() {
+  var a = document.activeElement;
+  if (!a) return false;
+  var tag = a.tagName;
+  if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return false;
+  var sheet = document.querySelector('.sheet');
+  return !!(sheet && sheet.contains(a));
+}
+
 function renderSheet() {
   if (dragging) return;
+
+  // A background sync used to redraw this screen while you were still
+  // typing, replacing the box under your fingers and losing the sentence.
+  // Redraws wait until you tap away.
+  if (isEditing()) { sheetDirty = true; return; }
+  sheetDirty = false;
 
   var existing = document.querySelector('.sheet');
   var wanted = openScreen || (openTask ? 'task' : null);
@@ -1945,6 +1979,9 @@ document.addEventListener('click', function (ev) {
   if (act === 'tab') { tab = btn.getAttribute('data-tab'); render(); return; }
   if (act === 'open') { openTask = id; openScreen = null; render(); return; }
   if (act === 'close') {
+    // Decoded photos are large. Holding them for tasks you are no longer
+    // looking at is what gets a web app killed on a phone.
+    previewCache = {};
     if (openScreen === 'compose' && pendingFiles.length &&
         !confirm(plural(pendingFiles.length, 'photo') + ' will be discarded. Cancel anyway?')) {
       return;
