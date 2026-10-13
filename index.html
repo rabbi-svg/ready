@@ -370,6 +370,7 @@ var ready = [];       // drafts waiting to be copied
 var tasks = [];
 var answers = {};     // captureId -> array of answers in question order
 var working = '';     // text shown while the brain is thinking
+var held = null;      // a photo waiting to be told which question it answers
 var busy = false;
 var lastError = '';
 
@@ -468,8 +469,44 @@ function sendCapture(payload, label) {
 
 function capturePhoto(file) {
   shrink(file)
-    .then(function (p) { sendCapture(p, 'Reading the photo...'); })
+    .then(function (p) {
+      // If something is already waiting on an answer, this photo is as likely
+      // to be the answer as a new thing. Ask rather than guess.
+      if (asking.length) { held = p; render(); return; }
+      sendCapture(p, 'Reading the photo...');
+    })
     .catch(function (err) { toast(err.message || String(err), true); });
+}
+
+function sendHeldAsAnswer(id) {
+  var photo = held;
+  held = null;
+  if (!photo) return;
+
+  busy = true;
+  working = 'Reading it...';
+  render();
+
+  var mine = answers[id] || [];
+
+  post({ answer: { id: id, answers: mine, base64: photo.base64,
+                   mime: photo.mime, filename: photo.filename } })
+    .then(function (res) {
+      asking = asking.filter(function (a) { return a.id !== id; });
+      delete answers[id];
+      var d = res.data || {};
+      if ((d.drafts || []).length) {
+        ready.unshift({ id: id, summary: d.summary || 'Sorted',
+                        did: d.did || [], assumed: d.assumed || [], drafts: d.drafts });
+      } else { toast('Sorted'); }
+      return refresh(true);
+    })
+    .catch(function (err) {
+      lastError = err.message || String(err);
+      pushError('answer-photo: ' + lastError);
+      toast(lastError, true);
+    })
+    .then(function () { busy = false; working = ''; render(); });
 }
 
 function captureNote(text) {
@@ -613,6 +650,20 @@ function render() {
         (busy ? 'disabled' : '') + '>' +
       '<button class="btn" data-act="note"' + (busy ? ' disabled' : '') + '>Send</button>' +
     '</div>';
+
+  if (held) {
+    html += '<div class="item asking">' +
+      '<h2>What is this photo for?</h2>' +
+      '<p class="read">Something is still waiting on an answer, so I am not ' +
+        'assuming either way.</p>' +
+      asking.map(function (a) {
+        return '<button class="btn wide" data-act="held-for" data-id="' + esc(a.id) + '" ' +
+          'style="margin-bottom:8px;text-align:left">' + esc(a.summary) + '</button>';
+      }).join('') +
+      '<button class="btn primary wide" data-act="held-new">It is something new</button>' +
+      '<button class="btn wide" data-act="held-drop" style="margin-top:8px">Forget it</button>' +
+    '</div>';
+  }
 
   if (working) html += '<div class="working">' + esc(working) + '</div>';
 
@@ -782,6 +833,16 @@ document.addEventListener('click', function (ev) {
     render();
     return;
   }
+
+  if (act === 'held-for') { sendHeldAsAnswer(id); return; }
+
+  if (act === 'held-new') {
+    var p = held; held = null;
+    if (p) sendCapture(p, 'Reading the photo...');
+    return;
+  }
+
+  if (act === 'held-drop') { held = null; render(); return; }
 
   if (act === 'submit') { submitAnswers(id); return; }
   if (act === 'dismiss') { dismiss(id); return; }
