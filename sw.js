@@ -13,7 +13,7 @@
  * activation.
  */
 
-const VERSION = 'ready-v1';
+const VERSION = 'ready-v2';
 const SHELL = [
   './',
   './index.html',
