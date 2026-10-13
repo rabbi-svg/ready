@@ -20,14 +20,9 @@
   --faint:   #8B9AA5;
   --rule:    #CBD5DB;
   --sunk:    #DDE3E7;
-
   --amber:   #B26A00;
   --rust:    #B33A2B;
-  --oxblood: #7A1F1A;
   --calm:    #2E6E62;
-
-  --tap: 44px;
-  --gap: 14px;
   --shell: 620px;
 }
 
@@ -40,51 +35,25 @@
     --faint:   #74858F;
     --rule:    #2E3A43;
     --sunk:    #161E24;
-
     --amber:   #E0A040;
     --rust:    #E27A63;
-    --oxblood: #D9695C;
     --calm:    #6FB3A2;
   }
 }
 
 * { box-sizing: border-box; }
-
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
+html, body { margin: 0; padding: 0; height: 100%; }
 
 body {
   background: var(--paper);
   color: var(--ink);
   font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overscroll-behavior-y: contain;
 }
 
-/* Times, dates and counts read as data, so they get tabular figures
-   and tighter tracking than the prose around them. */
-.num, .meta time, .stat {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-
-button, input, select, textarea {
-  font: inherit;
-  color: inherit;
-}
-
+button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
-
-:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-  border-radius: 3px;
-}
-
-/* ---------- shell ---------- */
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 3px; }
 
 #app {
   display: flex;
@@ -92,530 +61,207 @@ button { cursor: pointer; }
   min-height: 100dvh;
   max-width: var(--shell);
   margin: 0 auto;
+  padding: max(10px, env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
 }
 
 header.bar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: max(10px, env(safe-area-inset-top)) 16px 10px;
-  background: var(--paper);
-  border-bottom: 1px solid var(--rule);
-}
-
-header.bar h1 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -0.015em;
-  flex: 1;
-}
-
-.iconbtn {
-  min-width: var(--tap);
-  min-height: 36px;
-  padding: 0 10px;
-  background: none;
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.iconbtn[data-busy="1"] { color: var(--calm); border-color: var(--calm); }
-
-#screen {
-  flex: 1;
-  padding: 16px 16px 96px;
-}
-
-/* ---------- the urgency line: this is the point of the app ---------- */
-
-.lede {
-  margin: 0 0 18px;
-  font-size: 20px;
-  line-height: 1.3;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  max-width: 34ch;
-}
-
-.lede.quiet { font-weight: 500; color: var(--muted); }
-
-/* ---------- cards ---------- */
-
-.card {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  margin-bottom: 10px;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.card .edge {
-  flex: 0 0 4px;
-  background: transparent;
-}
-
-.card[data-risk="late"]  .edge { background: var(--oxblood); }
-.card[data-risk="today"] .edge { background: var(--rust); }
-.card[data-risk="soon"]  .edge { background: var(--amber); }
-
-.card .body {
-  flex: 1;
-  min-width: 0;
-  padding: 12px 12px 12px 13px;
-  text-align: left;
-  background: none;
-  border: 0;
-}
-
-.card h3 {
-  margin: 0;
-  font-size: 15.5px;
-  font-weight: 550;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
-}
-
-.card.done h3 { color: var(--muted); text-decoration: line-through; }
-
-.signal {
-  margin: 5px 0 0;
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-}
-
-.signal[data-risk="late"]  { color: var(--oxblood); }
-.signal[data-risk="today"] { color: var(--rust); }
-.signal[data-risk="soon"]  { color: var(--amber); }
-
-.meta {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px 12px;
-}
-
-.tick {
-  flex: 0 0 48px;
-  background: none;
-  border: 0;
-  border-left: 1px solid var(--rule);
-  color: var(--faint);
-  font-size: 20px;
-  line-height: 1;
-}
-
-.tick:active { background: var(--sunk); }
-.tick.on { color: var(--calm); }
-
-/* ---------- groups, chips, empty ---------- */
-
-.group {
-  margin: 22px 0 8px;
-  font-size: 13.5px;
-  font-weight: 650;
-  color: var(--muted);
-}
-
-.group:first-child { margin-top: 0; }
-
-.group.link {
-  display: block;
-  width: 100%;
-  padding: 0;
-  background: none;
-  border: 0;
-  text-align: left;
-  color: var(--ink);
-}
-
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: var(--sunk);
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  font-size: 13px;
-  color: var(--ink);
-}
-
-.chip button {
-  background: none;
-  border: 0;
-  padding: 0 2px;
-  color: var(--faint);
-  font-size: 15px;
-  line-height: 1;
-}
-
-.empty {
-  padding: 28px 4px;
-  color: var(--muted);
-  font-size: 15px;
-  max-width: 38ch;
-}
-
-.empty strong { color: var(--ink); font-weight: 600; }
-
-/* ---------- compose ---------- */
-
-#fab {
-  position: fixed;
-  right: max(16px, calc(50vw - var(--shell) / 2 + 16px));
-  bottom: calc(68px + max(6px, env(safe-area-inset-bottom)));
-  z-index: 30;
-  width: 54px;
-  height: 54px;
-  border: 1px solid var(--ink);
-  border-radius: 27px;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 27px;
-  line-height: 1;
-}
-
-/* ---------- tabs ---------- */
-
-nav.tabs {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 25;
-  display: flex;
-  background: var(--surface);
-  border-top: 1px solid var(--rule);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-nav.tabs button {
-  flex: 1;
-  min-height: 56px;
-  padding: 6px 2px;
-  background: none;
-  border: 0;
-  border-top: 2px solid transparent;
-  color: var(--muted);
-  font-size: 11.5px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-}
-
-nav.tabs button[aria-current="page"] {
-  color: var(--ink);
-  border-top-color: var(--ink);
-  font-weight: 600;
-}
-
-nav.tabs .count {
-  font-size: 15px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---------- sheets ---------- */
-
-.sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  background: var(--paper);
-  overflow-y: auto;
-  padding: 0 16px calc(40px + env(safe-area-inset-bottom));
-  max-width: var(--shell);
-  margin: 0 auto;
-}
-
-.sheet header {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: max(12px, env(safe-area-inset-top)) 0 12px;
-  background: var(--paper);
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--rule);
   margin-bottom: 18px;
 }
 
-.sheet header h2 {
-  flex: 1;
-  margin: 0;
-  font-size: 16px;
-  font-weight: 650;
+header.bar h1 {
+  margin: 0; flex: 1;
+  font-size: 17px; font-weight: 650; letter-spacing: -0.015em;
 }
 
-section.block { margin-bottom: 26px; }
+.iconbtn {
+  min-height: 36px; padding: 0 12px;
+  background: none; border: 1px solid var(--rule); border-radius: 5px;
+  color: var(--muted); font-size: 13px;
+}
+.iconbtn[data-busy="1"] { color: var(--calm); border-color: var(--calm); }
 
-section.block > h3 {
-  margin: 0 0 8px;
-  font-size: 13.5px;
-  font-weight: 650;
-  color: var(--muted);
+/* ---------- capture ---------- */
+
+.capture {
+  display: flex; gap: 10px; margin-bottom: 10px;
 }
 
-label.field { display: block; margin-bottom: 14px; }
+.shoot {
+  flex: 1; min-height: 76px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: var(--ink); color: var(--paper);
+  border: 1px solid var(--ink); border-radius: 12px;
+  font-size: 15px; font-weight: 600;
+}
+.shoot .glyph { font-size: 24px; line-height: 1; }
+.shoot.second { background: var(--surface); color: var(--ink); border-color: var(--rule); font-weight: 500; }
 
-label.field > span {
-  display: block;
-  margin-bottom: 5px;
-  font-size: 13px;
-  color: var(--muted);
+.typebox { display: flex; gap: 8px; margin-bottom: 22px; }
+.typebox input {
+  flex: 1; min-width: 0; padding: 12px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+  -webkit-appearance: none; appearance: none;
 }
 
-input[type="text"], input[type="date"], input[type="number"],
-input[type="url"], input[type="password"], textarea, select {
-  width: 100%;
-  padding: 11px 12px;
+/* ---------- waiting ---------- */
+
+.item {
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 6px;
-  -webkit-appearance: none;
-  appearance: none;
+  border-left: 4px solid var(--rule);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.item.asking { border-left-color: var(--amber); }
+.item.ready  { border-left-color: var(--calm); }
+
+.item h2 {
+  margin: 0 0 4px;
+  font-size: 15.5px; font-weight: 600; line-height: 1.35; letter-spacing: -0.01em;
+}
+.item .read { margin: 0 0 12px; font-size: 13.5px; color: var(--muted); }
+
+.q { margin-bottom: 16px; }
+.q p { margin: 0 0 7px; font-size: 14.5px; font-weight: 550; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 7px; }
+
+.opt {
+  padding: 8px 12px;
+  background: var(--sunk); border: 1px solid var(--rule); border-radius: 6px;
+  font-size: 14px;
+}
+.opt.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+.q input {
+  width: 100%; padding: 9px 11px;
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 6px;
+  font-size: 14px;
 }
 
-textarea { min-height: 78px; resize: vertical; }
+.did { margin: 0 0 12px; padding: 0 0 0 16px; font-size: 14px; color: var(--muted); }
+.did li { margin-bottom: 3px; }
 
-.row { display: flex; gap: 10px; }
-.row > * { flex: 1; min-width: 0; }
+.guess {
+  margin: 0 0 12px; padding: 9px 11px;
+  background: var(--sunk); border: 1px dashed var(--amber); border-radius: 6px;
+  font-size: 13px; color: var(--muted);
+}
+
+.draft {
+  margin-bottom: 10px; padding: 12px;
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 8px;
+}
+.draft .to { font-size: 12.5px; color: var(--faint); margin-bottom: 6px; }
+.draft .body {
+  font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+  margin-bottom: 10px;
+}
 
 .btn {
-  min-height: var(--tap);
-  padding: 0 16px;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  font-size: 14.5px;
-  font-weight: 550;
+  min-height: 44px; padding: 0 16px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 7px;
+  font-size: 14.5px; font-weight: 550;
 }
-
 .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-.btn.danger  { color: var(--oxblood); border-color: var(--oxblood); background: none; }
-.btn.wide    { display: block; width: 100%; }
-.btn:disabled { opacity: .45; cursor: default; }
+.btn.wide { display: block; width: 100%; }
+.btn.small { min-height: 38px; font-size: 13.5px; padding: 0 12px; }
+.btn:disabled { opacity: .45; }
 
-.derived {
-  padding: 12px 14px;
-  background: var(--sunk);
-  border: 1px dashed var(--rule);
-  border-radius: 8px;
-  font-size: 13.5px;
+.row { display: flex; gap: 8px; }
+
+/* ---------- tasks ---------- */
+
+.tasks { margin-top: 26px; }
+.tasks h3 {
+  margin: 0 0 8px; font-size: 13px; font-weight: 650;
   color: var(--muted);
 }
-
-.derived .stat { color: var(--ink); font-weight: 600; }
-.derived p { margin: 0 0 5px; }
-.derived p:last-child { margin: 0; }
-
-ul.plain { list-style: none; margin: 0; padding: 0; }
-
-ul.plain li {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--rule);
+.task {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 11px 0; border-bottom: 1px solid var(--rule);
   font-size: 14.5px;
 }
+.task:last-child { border-bottom: 0; }
+.task .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.task .when { font-size: 12.5px; color: var(--faint); white-space: nowrap; }
+.task.late .when { color: var(--rust); font-weight: 600; }
 
-ul.plain li:last-child { border-bottom: 0; }
-ul.plain li.gone { color: var(--muted); text-decoration: line-through; }
-ul.plain li .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-ul.plain li .age { color: var(--faint); font-size: 12.5px; white-space: nowrap; }
-
-.check {
-  flex: 0 0 24px;
-  height: 24px;
-  padding: 0;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  color: var(--calm);
-  font-size: 14px;
-  line-height: 1;
+.tick {
+  flex: 0 0 26px; height: 26px; padding: 0;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 6px;
+  color: var(--calm); font-size: 14px; line-height: 1;
 }
 
-.log { margin: 0; padding: 0; list-style: none; }
-
-.log li {
-  padding: 10px 0 10px 12px;
-  border-left: 2px solid var(--rule);
-  margin-bottom: 2px;
-  font-size: 14.5px;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.log time {
-  display: block;
-  margin-bottom: 3px;
-  font-size: 12px;
-  color: var(--faint);
-}
-
-.pick {
-  display: block;
-  width: 100%;
-  padding: 12px;
-  margin-bottom: 6px;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  text-align: left;
-  font-size: 14.5px;
-}
-
-.preview {
-  margin-top: 8px;
-  min-height: 20px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.preview b { color: var(--ink); font-weight: 600; }
-
-.card.gated { background: var(--sunk); }
-.card.gated h3 { color: var(--muted); }
-.card.gated .body { opacity: .9; }
-
-.gate {
-  margin: 5px 0 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--faint);
-}
-
-.grip {
-  flex: 0 0 38px;
-  background: none;
-  border: 0;
-  border-left: 1px solid var(--rule);
-  color: var(--faint);
-  font-size: 15px;
-  letter-spacing: -3px;
-  touch-action: none;          /* the handle drags, it never scrolls */
-  cursor: grab;
-}
-
-.card.lifted {
-  position: fixed;
-  z-index: 50;
-  margin: 0;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, .22);
-  pointer-events: none;
-  cursor: grabbing;
-}
-
-.dropslot {
-  margin-bottom: 10px;
-  border: 1px dashed var(--faint);
-  border-radius: 10px;
-  background: transparent;
-}
-
-body.dragging {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.thumb {
-  display: block;
-  width: 100%;
-  max-height: 60vh;
-  object-fit: contain;
-  background: var(--sunk);
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-}
-
-label.btn { cursor: pointer; }
-
-.toast {
-  position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: calc(76px + env(safe-area-inset-bottom));
-  z-index: 60;
-  max-width: calc(var(--shell) - 32px);
-  margin: 0 auto;
-  padding: 12px 14px;
-  background: var(--ink);
-  color: var(--paper);
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.toast.bad { background: var(--oxblood); }
+.empty { padding: 22px 2px; color: var(--muted); font-size: 15px; max-width: 34ch; }
+.empty strong { color: var(--ink); font-weight: 600; }
 
 .warn {
-  padding: 12px 14px;
-  margin-bottom: 16px;
+  padding: 11px 13px; margin-bottom: 14px;
   background: var(--surface);
-  border: 1px solid var(--rust);
-  border-left: 4px solid var(--rust);
-  border-radius: 8px;
-  font-size: 13.5px;
+  border: 1px solid var(--rust); border-left: 4px solid var(--rust);
+  border-radius: 8px; font-size: 13.5px;
+}
+.warn code { font-size: 12px; overflow-wrap: anywhere; }
+
+.working {
+  padding: 14px; margin-bottom: 12px;
+  background: var(--surface); border: 1px dashed var(--rule); border-radius: 10px;
+  font-size: 14px; color: var(--muted);
 }
 
-.warn code { font-size: 12.5px; overflow-wrap: anywhere; }
-
-@media (prefers-reduced-motion: no-preference) {
-  .sheet { animation: rise .18s ease-out; }
-  @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
+.sheet {
+  position: fixed; inset: 0; z-index: 40;
+  background: var(--paper); overflow-y: auto;
+  padding: max(14px, env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));
+  max-width: var(--shell); margin: 0 auto;
 }
+.sheet h2 { margin: 0 0 16px; font-size: 16px; }
+label.field { display: block; margin-bottom: 14px; }
+label.field > span { display: block; margin-bottom: 5px; font-size: 13px; color: var(--muted); }
+label.field input {
+  width: 100%; padding: 11px 12px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 6px;
+  -webkit-appearance: none; appearance: none;
+}
+
+.toast {
+  position: fixed; left: 16px; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 60; max-width: calc(var(--shell) - 32px); margin: 0 auto;
+  padding: 12px 14px; background: var(--ink); color: var(--paper);
+  border-radius: 8px; font-size: 14px;
+}
+.toast.bad { background: var(--rust); }
 </style>
 </head>
 <body>
 <div id="app">
   <header class="bar">
     <h1>Ready</h1>
-    <button class="iconbtn" id="syncBtn" title="Sync now">Sync</button>
-    <button class="iconbtn" id="setBtn" title="Settings">Setup</button>
+    <button class="iconbtn" id="syncBtn">Refresh</button>
+    <button class="iconbtn" id="setBtn">Setup</button>
   </header>
   <main id="screen"></main>
-  <nav class="tabs" id="tabs"></nav>
 </div>
-<button id="fab" title="Add a task">+</button>
 
 <script>
 "use strict";
 
-var APP_VERSION = 'v1.0';
+var APP_VERSION = 'v2.0';
 
 /* ================================================================
-   storage — degrades quietly so the app still runs from a file://
-   page or in private browsing, where localStorage may be blocked
+   storage
    ================================================================ */
 
 var mem = {};
-var contextCache = null;
 var persists = (function () {
-  try {
-    localStorage.setItem('ready.probe', '1');
-    localStorage.removeItem('ready.probe');
-    return true;
-  } catch (e) { return false; }
+  try { localStorage.setItem('p', '1'); localStorage.removeItem('p'); return true; }
+  catch (e) { return false; }
 })();
 
 function rawGet(k) {
@@ -624,72 +270,42 @@ function rawGet(k) {
 }
 function rawSet(k, v) {
   mem[k] = v;
-  // Any write to stored state drops the derived cache. Doing it here means
-  // no caller has to remember to.
-  if (k === 'ready.server' || k === 'ready.outbox') contextCache = null;
   try { if (persists) localStorage.setItem(k, v); } catch (e) { persists = false; }
 }
-function jget(k, fallback) {
+function jget(k, d) {
   var v = rawGet(k);
-  if (!v) return fallback;
-  try { return JSON.parse(v); } catch (e) { return fallback; }
+  if (!v) return d;
+  try { return JSON.parse(v); } catch (e) { return d; }
 }
 function jset(k, v) { rawSet(k, JSON.stringify(v)); }
 
-var K = {
-  cfg: 'ready.cfg',
-  server: 'ready.server',
-  outbox: 'ready.outbox',
-  errors: 'ready.errors'
-};
-
-function getCfg()  { return jget(K.cfg, null); }
-function setCfg(c) { jset(K.cfg, c); }
-
-var EMPTY = { tasks: [], needs: [], notes: [], attachments: [], settings: {} };
-
-function getServer() { return jget(K.server, EMPTY); }
-function setServer(s) {
-  jset(K.server, {
-    tasks: s.tasks || [],
-    needs: s.needs || [],
-    notes: s.notes || [],
-    attachments: s.attachments || [],
-    settings: s.settings || {}
-  });
-}
-function getOutbox()  { return jget(K.outbox, []); }
-function setOutbox(o) { jset(K.outbox, o); }
-function getErrors()  { return jget(K.errors, []); }
+function getCfg() { return jget('ready.cfg', null); }
+function setCfg(c) { jset('ready.cfg', c); }
+function getErrors() { return jget('ready.errors', []); }
 
 function pushError(text) {
   var list = getErrors();
   list.unshift({ at: new Date().toISOString(), text: String(text) });
-  jset(K.errors, list.slice(0, 20));
+  jset('ready.errors', list.slice(0, 20));
 }
 
 /* ================================================================
-   dates — always local, always YYYY-MM-DD strings, never parsed
-   through Date for comparison
+   small helpers
    ================================================================ */
+
+function esc(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 function pad(n) { return n < 10 ? '0' + n : String(n); }
 function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 function today() { return ymd(new Date()); }
 
-function shiftDay(s, n) {
-  var p = String(s).split('-');
-  var d = new Date(+p[0], +p[1] - 1, +p[2]);
-  d.setDate(d.getDate() + n);
-  return ymd(d);
-}
-
-// Whole days from a to b. Positive means b is later.
 function dayGap(a, b) {
   var x = String(a).split('-'), y = String(b).split('-');
-  return Math.round(
-    (Date.UTC(+y[0], +y[1] - 1, +y[2]) - Date.UTC(+x[0], +x[1] - 1, +x[2])) / 86400000
-  );
+  return Math.round((Date.UTC(+y[0], +y[1] - 1, +y[2]) - Date.UTC(+x[0], +x[1] - 1, +x[2])) / 86400000);
 }
 
 var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -701,350 +317,27 @@ function niceDate(s) {
   if (gap === 0) return 'today';
   if (gap === 1) return 'tomorrow';
   if (gap === -1) return 'yesterday';
+  if (gap < 0) return Math.abs(gap) + ' days ago';
   var p = String(s).split('-');
   var d = new Date(+p[0], +p[1] - 1, +p[2]);
-  var base = DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
-  return Math.abs(gap) > 300 ? base + ' ' + d.getFullYear() : base;
+  return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
 }
 
-function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
-
-function niceMins(m) {
-  m = Number(m) || 0;
-  if (m < 60) return m + 'm';
-  var h = Math.floor(m / 60), r = m % 60;
-  if (!r) return h + 'h';
-  return h + 'h ' + r + 'm';
-}
-
-function ageInDays(iso) {
-  if (!iso) return 0;
-  var then = new Date(iso);
-  if (isNaN(then.getTime())) return 0;
-  return dayGap(ymd(then), today());
-}
-
-function uuid() {
-  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
-}
-
-function esc(s) {
-  return String(s === undefined || s === null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+function toast(msg, bad) {
+  var old = document.querySelector('.toast');
+  if (old) old.remove();
+  var el = document.createElement('div');
+  el.className = 'toast' + (bad ? ' bad' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function () { el.remove(); }, bad ? 7000 : 2400);
 }
 
 /* ================================================================
-   the outbox: local state is server state plus unsent mutations,
-   replayed on top. Optimistic UI falls out of this for free.
+   talking to the server
    ================================================================ */
 
-function enqueue(op, data) {
-  enqueueQuiet(op, data);
-  render();
-}
-
-// Records the change and schedules the sync, but draws nothing. Used when
-// the caller is about to redraw anyway, or is mid-drag and must not.
-function enqueueQuiet(op, data) {
-  var box = getOutbox();
-  box.push({ mid: uuid(), op: op, data: data });
-  setOutbox(box);
-  scheduleSync();
-}
-
-function splitIds(v) {
-  return String(v || '').split(',').map(function (s) { return s.trim(); })
-    .filter(function (s) { return s !== ''; });
-}
-
-function applyLocal(state, m) {
-  var d = m.data || {};
-  var i;
-
-  function taskIndex(id) {
-    for (var k = 0; k < state.tasks.length; k++) {
-      if (String(state.tasks[k].id) === String(id)) return k;
-    }
-    return -1;
-  }
-
-  if (m.op === 'upsertTask') {
-    i = taskIndex(d.id);
-    if (i >= 0) {
-      Object.keys(d).forEach(function (key) {
-        if (key !== 'id') state.tasks[i][key] = d[key];
-      });
-      state.tasks[i].updated_at = new Date().toISOString();
-    } else {
-      state.tasks.push({
-        id: d.id, title: d.title || '', estimate_min: d.estimate_min || '',
-        actual_min: '', deadline: d.deadline || '', blocked_by: d.blocked_by || '',
-        parent_id: d.parent_id || '', tags: d.tags || '', recur_days: d.recur_days || '',
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        completed_at: '', archived: false,
-        sort_order: d.sort_order !== undefined ? d.sort_order : '',
-        notes: d.notes || ''
-      });
-    }
-  } else if (m.op === 'completeTask') {
-    i = taskIndex(d.id);
-    if (i >= 0) {
-      state.tasks[i].completed_at = new Date().toISOString();
-      if (d.actual_min) state.tasks[i].actual_min = d.actual_min;
-    }
-  } else if (m.op === 'reopenTask') {
-    i = taskIndex(d.id);
-    if (i >= 0) { state.tasks[i].completed_at = ''; state.tasks[i].actual_min = ''; }
-  } else if (m.op === 'deleteTask') {
-    state.tasks = state.tasks.filter(function (t) { return String(t.id) !== String(d.id); });
-    state.tasks.forEach(function (t) {
-      var deps = splitIds(t.blocked_by);
-      if (deps.indexOf(String(d.id)) !== -1) {
-        t.blocked_by = deps.filter(function (x) { return x !== String(d.id); }).join(',');
-      }
-      if (String(t.parent_id) === String(d.id)) t.parent_id = '';
-    });
-    state.needs = state.needs.filter(function (n) { return String(n.task_id) !== String(d.id); });
-    state.notes = state.notes.filter(function (n) { return String(n.task_id) !== String(d.id); });
-  } else if (m.op === 'addNote') {
-    state.notes.push({
-      id: d.id, task_id: d.task_id, body: d.body, created_at: new Date().toISOString()
-    });
-  } else if (m.op === 'upsertNeed') {
-    var found = -1;
-    for (i = 0; i < state.needs.length; i++) {
-      if (String(state.needs[i].id) === String(d.id)) { found = i; break; }
-    }
-    if (found >= 0) {
-      if (d.label !== undefined) state.needs[found].label = d.label;
-      if (d.resolved !== undefined) {
-        state.needs[found].resolved = !!d.resolved;
-        state.needs[found].resolved_at = d.resolved ? new Date().toISOString() : '';
-      }
-    } else {
-      state.needs.push({
-        id: d.id, task_id: d.task_id, label: d.label || '', resolved: !!d.resolved,
-        created_at: new Date().toISOString(),
-        resolved_at: d.resolved ? new Date().toISOString() : ''
-      });
-    }
-  } else if (m.op === 'deleteNeed') {
-    state.needs = state.needs.filter(function (n) { return String(n.id) !== String(d.id); });
-  } else if (m.op === 'setSetting') {
-    state.settings[d.key] = String(d.value);
-  }
-  return state;
-}
-
-function viewState() {
-  var state = JSON.parse(JSON.stringify(getServer()));
-  getOutbox().forEach(function (m) {
-    try { applyLocal(state, m); } catch (e) { /* a bad local replay must not blank the app */ }
-  });
-  return state;
-}
-
-/* ================================================================
-   derived facts — computed every render, never stored
-   ================================================================ */
-
-function buildContext() {
-  if (contextCache) return contextCache;
-  var s = viewState();
-  var ctx = {
-    today: today(),
-    tasks: s.tasks.filter(function (t) { return t.archived !== true && t.archived !== 'TRUE'; }),
-    settings: s.settings,
-    defaultEst: Math.max(1, parseInt(s.settings.default_estimate_min, 10) || 30),
-    byId: {}, needsBy: {}, attachBy: {}
-  };
-
-  ctx.tasks.forEach(function (t) { ctx.byId[String(t.id)] = t; });
-  s.needs.forEach(function (n) {
-    (ctx.needsBy[String(n.task_id)] = ctx.needsBy[String(n.task_id)] || []).push(n);
-  });
-  s.attachments.forEach(function (a) {
-    (ctx.attachBy[String(a.task_id)] = ctx.attachBy[String(a.task_id)] || []).push(a);
-  });
-
-  contextCache = ctx;
-  return ctx;
-}
-
-function isDone(t) { return !!t && String(t.completed_at || '') !== ''; }
-
-function openNeeds(t, ctx) {
-  return (ctx.needsBy[String(t.id)] || []).filter(function (n) {
-    return n.resolved !== true && n.resolved !== 'TRUE';
-  });
-}
-
-function statusOf(t, ctx) {
-  if (isDone(t)) return 'done';
-  if (openNeeds(t, ctx).length) return 'waiting';
-  return 'ready';
-}
-
-function decorate(t, ctx) {
-  var status = statusOf(t, ctx);
-  var risk = 'ok';
-
-  if (status !== 'done' && t.deadline) {
-    var gap = dayGap(ctx.today, t.deadline);
-    if (gap < 0) risk = 'late';
-    else if (gap === 0) risk = 'today';
-    else if (gap <= 2) risk = 'soon';
-  }
-
-  return {
-    task: t, status: status,
-    deadline: t.deadline || '',
-    risk: risk,
-    needs: openNeeds(t, ctx),
-    fileCount: (ctx.attachBy[String(t.id)] || []).length
-  };
-}
-
-function orderValue(t) {
-  var v = t.sort_order;
-  if (v === '' || v === null || v === undefined) return null;
-  var n = Number(v);
-  return isNaN(n) ? null : n;
-}
-
-// One order: yours. Anything you have not moved sits in the order it was
-// created, so a new task lands at the bottom and stays there until you say
-// otherwise.
-function orderList(list) {
-  return list.slice().sort(function (a, b) {
-    var oa = orderValue(a.task);
-    var ob = orderValue(b.task);
-    if (oa !== null && ob !== null && oa !== ob) return oa - ob;
-    if (oa !== null && ob === null) return -1;
-    if (oa === null && ob !== null) return 1;
-    return String(a.task.created_at).localeCompare(String(b.task.created_at));
-  });
-}
-
-function riskSentence(d) {
-  if (d.status === 'done' || !d.deadline) return '';
-  var gap = dayGap(today(), d.deadline);
-  if (gap < 0) return 'Overdue by ' + plural(-gap, 'day');
-  if (gap === 0) return 'Due today';
-  if (gap === 1) return 'Due tomorrow';
-  if (gap <= 2) return 'Due in ' + plural(gap, 'day');
-  return '';
-}
-
-/* ================================================================
-   network
-   ================================================================ */
-
-var syncing = false;
-var syncQueued = false;
-var syncTimer = null;
-var lastNetError = '';
-
-function scheduleSync() {
-  clearTimeout(syncTimer);
-  syncTimer = setTimeout(function () { sync(); }, 600);
-}
-
-function sync(loud) {
-  var cfg = getCfg();
-  if (!cfg || !cfg.url) return Promise.resolve();
-
-  // Changes made while a sync is in flight used to be dropped and never
-  // retried, so the "not yet saved" banner stayed up until you did something
-  // else. Now they queue and go straight after.
-  if (syncing) { syncQueued = true; return Promise.resolve(); }
-
-  syncing = true;
-  var quiet = false;
-  document.getElementById('syncBtn').setAttribute('data-busy', '1');
-
-  var box = getOutbox();
-
-  // Content-Type must stay text/plain. Anything else triggers a CORS
-  // preflight, and Apps Script does not answer OPTIONS requests.
-  return fetch(cfg.url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ token: cfg.token, mutations: box })
-  })
-    .then(function (r) { return r.text(); })
-    .then(function (text) {
-      var res;
-      try { res = JSON.parse(text); }
-      catch (e) {
-        if (text.trim().charAt(0) === '<') {
-          throw new Error('Got a web page instead of data. Check Setup is pointing ' +
-            'at your relay address, not the Google script address.');
-        }
-        throw new Error('Server sent something that was not data: ' + text.slice(0, 80));
-      }
-      if (!res.ok) throw new Error(res.error || 'Server refused the request');
-
-      var settled = {};
-      (res.applied || []).forEach(function (a) {
-        settled[a.mid] = true;
-        if (a.status === 'error') pushError((a.op || 'change') + ': ' + a.error);
-      });
-      var before = rawGet(K.server);
-      setOutbox(getOutbox().filter(function (m) { return !settled[m.mid]; }));
-      setServer(res.state);
-      quiet = (before === rawGet(K.server)) && !Object.keys(settled).length;
-      lastNetError = '';
-      if (loud) toast('Up to date');
-    })
-    .catch(function (err) {
-      lastNetError = err.message || String(err);
-      if (loud) toast(lastNetError, true);
-    })
-    .then(function () {
-      syncing = false;
-      document.getElementById('syncBtn').removeAttribute('data-busy');
-      if (!quiet) render();
-      if (syncQueued) { syncQueued = false; scheduleSync(); }
-    });
-}
-
-/* ================================================================
-   estimate parsing
-   ================================================================ */
-
-function readMins(token) {
-  var t = String(token).toLowerCase().trim();
-  var m = t.match(/^([\d.]+)\s*h$/);
-  if (m) return Math.round(parseFloat(m[1]) * 60);
-  m = t.match(/^([\d.]+)\s*m$/);
-  if (m) return Math.round(parseFloat(m[1]));
-  m = t.match(/^(\d+)$/);
-  if (m) return parseInt(m[1], 10);
-  return '';
-}
-
-/* ================================================================
-   attachments
-
-   These do not go through the outbox. A phone photo is hundreds of
-   kilobytes, browser storage holds about five megabytes in total, and
-   one queued image could push out every other unsent change. So an
-   upload needs a live connection and either succeeds or reports why.
-   ================================================================ */
-
-var uploading = false;
-var previewCache = {};    // attachment id -> data URL, this session only
-var previewLoading = {};
-
-// Photos picked on the new-task screen. A photo needs a task to belong to,
-// and there is no task yet, so they wait here (already downscaled) and go up
-// with the task itself in one request when you save.
-var pendingFiles = [];
-
-function postDirect(extra) {
+function post(extra) {
   var cfg = getCfg();
   if (!cfg || !cfg.url) return Promise.reject(new Error('Not connected yet'));
 
@@ -1058,47 +351,53 @@ function postDirect(extra) {
       var res;
       try { res = JSON.parse(text); }
       catch (e) {
-        if (text.trim().charAt(0) === '<') {
-          throw new Error('Got a web page instead of data. Check Setup is pointing ' +
-            'at your relay address, not the Google script address.');
+        if (String(text).trim().charAt(0) === '<') {
+          throw new Error('Got a web page instead of data. Check the address in Setup.');
         }
-        throw new Error('Server sent something that was not data');
+        throw new Error('The server sent something unreadable.');
       }
-      if (!res.ok) throw new Error(res.error || 'Server refused the request');
+      if (!res.ok) throw new Error(res.error || 'The server refused that.');
       return res;
     });
 }
 
-function readAsBase64(blobOrFile) {
+/* ================================================================
+   state
+   ================================================================ */
+
+var asking = [];      // captures waiting on an answer
+var ready = [];       // drafts waiting to be copied
+var tasks = [];
+var answers = {};     // captureId -> array of answers in question order
+var working = '';     // text shown while the brain is thinking
+var busy = false;
+var lastError = '';
+
+/* ================================================================
+   capture
+   ================================================================ */
+
+function readAsBase64(file) {
   return new Promise(function (resolve, reject) {
     var r = new FileReader();
     r.onload = function () {
       var s = String(r.result);
-      var comma = s.indexOf(',');
-      resolve(comma >= 0 ? s.slice(comma + 1) : s);
+      resolve(s.slice(s.indexOf(',') + 1));
     };
     r.onerror = function () { reject(new Error('Could not read that file')); };
-    r.readAsDataURL(blobOrFile);
+    r.readAsDataURL(file);
   });
 }
 
-// Phone cameras produce 3-8MB files. Base64 adds a third on top of that,
-// and the whole thing has to survive a round trip through Apps Script.
-function prepareFile(file) {
-  var isImage = /^image\//.test(file.type || '');
-
-  if (!isImage) {
-    if (file.size > 10 * 1024 * 1024) {
-      return Promise.reject(new Error(
-        'That file is ' + Math.round(file.size / 1048576) + 'MB. ' +
-        'The limit for non-images is 10MB.'));
+// Phone photos are 3-8MB and base64 adds a third on top. Shrink before
+// sending or the request times out somewhere between here and Google.
+function shrink(file) {
+  if (!/^image\//.test(file.type || '')) {
+    if (file.size > 8 * 1024 * 1024) {
+      return Promise.reject(new Error('That file is too big to send.'));
     }
     return readAsBase64(file).then(function (b64) {
-      return {
-        base64: b64,
-        filename: file.name || 'file',
-        mime: file.type || 'application/octet-stream'
-      };
+      return { base64: b64, mime: file.type || 'application/octet-stream', filename: file.name || 'file' };
     });
   }
 
@@ -1109,749 +408,330 @@ function prepareFile(file) {
     img.onload = function () {
       URL.revokeObjectURL(url);
       try {
-        var maxEdge = 1600;
-        var scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        var max = 1600;
+        var scale = Math.min(1, max / Math.max(img.width, img.height));
         var w = Math.max(1, Math.round(img.width * scale));
         var h = Math.max(1, Math.round(img.height * scale));
-
-        var canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        var dataUrl = c.toDataURL('image/jpeg', 0.8);
         resolve({
           base64: dataUrl.slice(dataUrl.indexOf(',') + 1),
-          filename: (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg',
-          mime: 'image/jpeg'
+          mime: 'image/jpeg',
+          filename: (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg'
         });
-      } catch (e) {
-        reject(new Error('Could not process that image'));
-      }
+      } catch (e) { reject(new Error('Could not process that photo')); }
     };
 
     img.onerror = function () {
       URL.revokeObjectURL(url);
-      reject(new Error('That does not look like an image the browser can read'));
+      reject(new Error('That photo could not be read'));
     };
-
     img.src = url;
   });
 }
 
-function holdFile(file) {
-  if (uploading) return;
-  uploading = true;
-  renderSheet();
-
-  prepareFile(file)
-    .then(function (prep) {
-      pendingFiles.push({
-        prep: prep,
-        url: 'data:' + prep.mime + ';base64,' + prep.base64
-      });
-    })
-    .catch(function (err) { toast(err.message || String(err), true); })
-    .then(function () {
-      uploading = false;
-      renderSheet();
-    });
-}
-
-function uploadFile(file) {
-  var taskId = openTask;
-  if (!taskId) return;
-  if (uploading) { toast('One upload at a time', true); return; }
-
-  uploading = true;
+function sendCapture(payload, label) {
+  busy = true;
+  working = label;
   render();
 
-  prepareFile(file)
-    .then(function (p) {
-      return postDirect({
-        mutations: [{
-          mid: uuid(),
-          op: 'addAttachment',
-          data: {
-            id: uuid(), task_id: taskId, filename: p.filename,
-            mime: p.mime, role: 'reference', base64: p.base64
-          }
-        }]
-      });
-    })
+  post({ capture: payload })
     .then(function (res) {
-      var problem = (res.applied || []).filter(function (a) { return a.status === 'error'; })[0];
-      if (problem) throw new Error(problem.error);
-      setServer(res.state);
-      toast('Attached');
+      var d = res.data || {};
+      if ((d.questions || []).length) {
+        asking.unshift({
+          id: res.id,
+          summary: d.summary || '',
+          reading: d.reading || '',
+          questions: d.questions
+        });
+        answers[res.id] = d.questions.map(function () { return ''; });
+      } else {
+        // Nothing to ask: it has already decided. Pull the result in.
+        toast('Done — nothing it needed to ask');
+        return refresh(true);
+      }
     })
     .catch(function (err) {
-      toast(err.message || String(err), true);
+      lastError = err.message || String(err);
+      pushError('capture: ' + lastError);
+      toast(lastError, true);
     })
     .then(function () {
-      uploading = false;
+      busy = false;
+      working = '';
       render();
     });
 }
 
-// Photos load themselves when a task is opened, so a picture is just
-// sitting there rather than waiting behind a tap.
-function loadPreview(id) {
-  if (previewCache[id] || previewLoading[id]) return;
-  previewLoading[id] = true;
+function capturePhoto(file) {
+  shrink(file)
+    .then(function (p) { sendCapture(p, 'Reading the photo...'); })
+    .catch(function (err) { toast(err.message || String(err), true); });
+}
 
-  postDirect({ get_attachment: id })
+function captureNote(text) {
+  sendCapture({ note: text }, 'Thinking...');
+}
+
+/* ================================================================
+   answering
+   ================================================================ */
+
+function submitAnswers(id) {
+  var item = null;
+  asking.forEach(function (a) { if (a.id === id) item = a; });
+  if (!item) return;
+
+  var mine = answers[id] || [];
+  var blank = mine.filter(function (a) { return !String(a).trim(); }).length;
+  if (blank === mine.length) { toast('Answer at least one', true); return; }
+
+  busy = true;
+  working = 'Working on it...';
+  render();
+
+  post({ answer: { id: id, answers: mine } })
     .then(function (res) {
-      previewCache[id] = 'data:' + res.mime + ';base64,' + res.base64;
-      previewLoading[id] = false;
-      renderSheet();
+      asking = asking.filter(function (a) { return a.id !== id; });
+      delete answers[id];
+      var d = res.data || {};
+      if ((d.drafts || []).length) {
+        ready.unshift({
+          id: id, summary: item.summary,
+          did: d.did || [], assumed: d.assumed || [], drafts: d.drafts
+        });
+      } else {
+        toast('Sorted');
+      }
+      return refresh(true);
     })
     .catch(function (err) {
-      previewLoading[id] = false;
-      toast(err.message || String(err), true);
+      lastError = err.message || String(err);
+      pushError('answer: ' + lastError);
+      toast(lastError, true);
+    })
+    .then(function () {
+      busy = false;
+      working = '';
+      render();
     });
 }
 
-function pendingSection() {
-  return '<section class="block"><h3>Photos and files</h3>' +
-    pendingFiles.map(function (f, i) {
-      if (/^image\//.test(f.prep.mime)) {
-        return '<figure class="shot">' +
-          '<img class="thumb" src="' + f.url + '" alt="' + esc(f.prep.filename) + '">' +
-          '<button class="chip shotdel" data-act="pend-del" data-idx="' + i + '">Remove</button>' +
-        '</figure>';
-      }
-      return '<div class="filerow">' +
-        '<span class="btn grow" style="line-height:44px;text-align:center">' +
-          esc(f.prep.filename) + '</span>' +
-        '<button class="chip" data-act="pend-del" data-idx="' + i + '">Remove</button>' +
-      '</div>';
-    }).join('') +
-    (uploading
-      ? '<p class="empty" style="padding:10px 0">Saving. Photos take a few seconds.</p>'
-      : '<div class="row" style="margin-top:' + (pendingFiles.length ? '10' : '0') + 'px">' +
-          '<label class="btn" style="text-align:center;line-height:44px">Take photo' +
-            '<input type="file" accept="image/*" capture="environment" data-upload="1" hidden>' +
-          '</label>' +
-          '<label class="btn" style="text-align:center;line-height:44px">Choose file' +
-            '<input type="file" data-upload="1" hidden>' +
-          '</label>' +
-        '</div>') +
-  '</section>';
-}
-
-function attachmentSection(t, ctx) {
-  var files = ctx.attachBy[String(t.id)] || [];
-
-  var rows = files.map(function (a) {
-    var isImage = /^image\//.test(a.mime || '');
-
-    if (isImage) {
-      if (!previewCache[a.id]) loadPreview(a.id);
-      return '<figure class="shot">' +
-        (previewCache[a.id]
-          ? '<img class="thumb" src="' + previewCache[a.id] + '" alt="' + esc(a.filename) + '">'
-          : '<div class="thumb loading">Loading\u2026</div>') +
-        '<button class="chip shotdel" data-act="file-del" data-id="' + esc(a.id) + '">' +
-          'Remove</button>' +
-      '</figure>';
-    }
-
-    return '<div class="filerow">' +
-      (previewCache[a.id]
-        ? '<a class="btn grow" style="text-decoration:none;text-align:center" href="' +
-            previewCache[a.id] + '" download="' + esc(a.filename) + '">' +
-            esc(a.filename) + '</a>'
-        : '<button class="btn grow" data-act="file-load" data-id="' + esc(a.id) + '">' +
-            esc(a.filename) + '</button>') +
-      '<button class="chip" data-act="file-del" data-id="' + esc(a.id) + '">Remove</button>' +
-    '</div>';
-  }).join('');
-
-  return '<section class="block"><h3>Photos and files</h3>' +
-    rows +
-    (uploading
-      ? '<p class="empty" style="padding:10px 0">Uploading. Large photos take a few seconds.</p>'
-      : '<div class="row" style="margin-top:' + (files.length ? '10' : '0') + 'px">' +
-          '<label class="btn" style="text-align:center;line-height:44px">Take photo' +
-            '<input type="file" accept="image/*" capture="environment" data-upload="1" hidden>' +
-          '</label>' +
-          '<label class="btn" style="text-align:center;line-height:44px">Choose file' +
-            '<input type="file" data-upload="1" hidden>' +
-          '</label>' +
-        '</div>') +
-  '</section>';
-}
-
 /* ================================================================
-   hand-ordering
-
-   Order lives in a numeric sort_order on each task. A drop lands the moved
-   task midway between its new neighbours, so only that one task is written
-   and nothing else has to be renumbered. When the midpoints get too close
-   to each other to be meaningful, the whole list is renumbered once.
-
-   Dragging is driven by pointer events from a handle rather than a
-   long-press on the card, so a drag can never be mistaken for a scroll.
+   refresh
    ================================================================ */
 
-var ORDER_GAP = 1;
+function refresh(quiet) {
+  var cfg = getCfg();
+  if (!cfg || !cfg.url) return Promise.resolve();
 
-// A drop renumbers every row from the top. Fractional midpoints were fewer
-// writes but had an edge case where the gaps ran out of precision, and for a
-// personal list this is small enough that plain numbering is simpler and
-// always right.
-function renumber(rows) {
-  rows.forEach(function (d, i) {
-    var want = (i + 1) * ORDER_GAP;
-    if (orderValue(d.task) !== want) {
-      enqueueQuiet('upsertTask', { id: d.task.id, sort_order: want });
-    }
-  });
-}
+  var btn = document.getElementById('syncBtn');
+  if (btn) btn.setAttribute('data-busy', '1');
 
-var drag = null;
+  return Promise.all([
+    post({ pending: true }),
+    post({})                     // the ordinary sync, for tasks
+  ])
+    .then(function (both) {
+      var p = both[0];
+      asking = p.asking || [];
+      ready = p.ready || [];
+      asking.forEach(function (a) {
+        if (!answers[a.id]) answers[a.id] = (a.questions || []).map(function () { return ''; });
+      });
 
-function startDrag(ev, taskId) {
-  var list = document.getElementById('tasklist');
-  var card = document.querySelector('[data-card="' + taskId + '"]');
-  if (!list || !card) return;
+      var state = both[1].state || {};
+      tasks = (state.tasks || []).filter(function (t) {
+        return String(t.completed_at || '') === '' && t.archived !== true && t.archived !== 'TRUE';
+      });
 
-  ev.preventDefault();
-
-  var rect = card.getBoundingClientRect();
-  var placeholder = document.createElement('div');
-  placeholder.className = 'dropslot';
-  placeholder.style.height = rect.height + 'px';
-
-  drag = {
-    id: taskId,
-    card: card,
-    list: list,
-    placeholder: placeholder,
-    grabDy: ev.clientY - rect.top,
-    width: rect.width,
-    left: rect.left,
-    scrollRaf: null,
-    scrollDir: 0
-  };
-
-  dragging = true;
-
-  card.parentNode.insertBefore(placeholder, card);
-  card.classList.add('lifted');
-  card.style.width = rect.width + 'px';
-  card.style.left = rect.left + 'px';
-  card.style.top = (rect.top) + 'px';
-
-  document.body.classList.add('dragging');
-  moveDrag(ev);
-}
-
-function moveDrag(ev) {
-  if (!drag) return;
-
-  drag.card.style.top = (ev.clientY - drag.grabDy) + 'px';
-
-  // Work out where the placeholder belongs by comparing the pointer against
-  // the midpoint of every other card still in the flow.
-  var siblings = Array.prototype.slice
-    .call(drag.list.querySelectorAll('.card:not(.lifted)'));
-  var target = null;
-
-  for (var i = 0; i < siblings.length; i++) {
-    var r = siblings[i].getBoundingClientRect();
-    if (ev.clientY < r.top + r.height / 2) { target = siblings[i]; break; }
-  }
-
-  if (target) drag.list.insertBefore(drag.placeholder, target);
-  else drag.list.appendChild(drag.placeholder);
-
-  // Autoscroll when the finger nears an edge, otherwise long lists are
-  // unreachable mid-drag.
-  var margin = 90;
-  var dir = 0;
-  if (ev.clientY < margin) dir = -1;
-  else if (ev.clientY > window.innerHeight - margin) dir = 1;
-
-  if (dir !== drag.scrollDir) {
-    drag.scrollDir = dir;
-    if (drag.scrollRaf) { cancelAnimationFrame(drag.scrollRaf); drag.scrollRaf = null; }
-    if (dir) {
-      var step = function () {
-        if (!drag || !drag.scrollDir) return;
-        window.scrollBy(0, drag.scrollDir * 12);
-        drag.scrollRaf = requestAnimationFrame(step);
-      };
-      drag.scrollRaf = requestAnimationFrame(step);
-    }
-  }
-}
-
-function endDrag() {
-  if (!drag) return;
-
-  if (drag.scrollRaf) cancelAnimationFrame(drag.scrollRaf);
-
-  var slot = drag.placeholder;
-  var ids = Array.prototype.slice.call(drag.list.children)
-    .map(function (el) {
-      if (el === slot) return drag.id;
-      if (el === drag.card) return null;
-      return el.getAttribute('data-card');
+      lastError = '';
+      jset('ready.cache', { asking: asking, ready: ready, tasks: tasks });
     })
-    .filter(function (x) { return x; });
-
-  drag.card.classList.remove('lifted');
-  drag.card.style.cssText = '';
-  if (slot.parentNode) slot.parentNode.removeChild(slot);
-  document.body.classList.remove('dragging');
-
-  var movedId = drag.id;
-  drag = null;
-  dragging = false;
-
-  // Recompute the moved task's order against whoever it landed between.
-  var ctx = buildContext();
-  var rows = ids.map(function (id) {
-    var t = ctx.byId[String(id)];
-    return t ? decorate(t, ctx) : null;
-  }).filter(function (x) { return x; });
-
-  renumber(rows);
-  render();
+    .catch(function (err) {
+      lastError = err.message || String(err);
+      if (!quiet) toast(lastError, true);
+    })
+    .then(function () {
+      if (btn) btn.removeAttribute('data-busy');
+      render();
+    });
 }
 
-document.addEventListener('pointerdown', function (ev) {
-  var grip = ev.target.closest && ev.target.closest('[data-grip]');
-  if (!grip) return;
-  grip.setPointerCapture(ev.pointerId);
-  startDrag(ev, grip.getAttribute('data-grip'));
-});
+function completeTask(id) {
+  tasks = tasks.filter(function (t) { return String(t.id) !== String(id); });
+  render();
+  post({ mutations: [{ mid: uuid(), op: 'completeTask', data: { id: id } }] })
+    .catch(function (err) { toast(err.message || String(err), true); });
+}
 
-document.addEventListener('pointermove', function (ev) {
-  if (drag) { ev.preventDefault(); moveDrag(ev); }
-}, { passive: false });
+function dismiss(id) {
+  ready = ready.filter(function (r) { return r.id !== id; });
+  render();
+  post({ archive_capture: { id: id } })
+    .catch(function (err) { toast(err.message || String(err), true); });
+}
 
-// Anything deferred while a field had focus happens once it loses it.
-document.addEventListener('focusout', function () {
-  setTimeout(function () {
-    if (sheetDirty && !isEditing()) renderSheet();
-  }, 0);
-});
-
-document.addEventListener('pointerup', endDrag);
-document.addEventListener('pointercancel', endDrag);
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 
 /* ================================================================
-   rendering
+   drawing
    ================================================================ */
 
-var openTask = null;
-var openScreen = null;   // 'compose' | 'settings'
-
-var TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'waiting', label: 'Waiting' },
-  { id: 'done', label: 'Done' }
-];
-
-var tab = 'all';
-var dragging = false;
-var listStale = false;
-
-function toast(msg, bad) {
-  var old = document.querySelector('.toast');
-  if (old) old.remove();
-  var el = document.createElement('div');
-  el.className = 'toast' + (bad ? ' bad' : '');
-  el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(function () { el.remove(); }, bad ? 6000 : 2200);
-}
-
-function card(d, opts) {
-  opts = opts || {};
-  var t = d.task;
-  var bits = [];
-
-  var sentence = riskSentence(d);
-  // Only show the date here when the line above is not already saying it.
-  if (d.deadline && !sentence) {
-    bits.push('<time>due ' + esc(niceDate(d.deadline)) + '</time>');
-  }
-  if (t.estimate_min) bits.push('<span>' + esc(niceMins(t.estimate_min)) + '</span>');
-  if (d.fileCount) bits.push('<span>' + plural(d.fileCount, 'file') + '</span>');
-  if (opts.extra) bits.push('<span>' + esc(opts.extra) + '</span>');
-
-  // Waiting tasks stay in the list, marked rather than hidden.
-  var gate = '';
-  if (d.status === 'waiting') {
-    gate = '<p class="gate">waiting on ' + esc(d.needs.map(function (n) { return n.label; })
-      .slice(0, 2).join(', ')) +
-      (d.needs.length > 2 ? ' and ' + plural(d.needs.length - 2, 'other') : '') + '</p>';
-  }
-
-  return '' +
-    '<article class="card' +
-        (d.status === 'done' ? ' done' : '') +
-        (d.status === 'waiting' ? ' gated' : '') +
-      '" data-risk="' + d.risk + '" data-card="' + esc(t.id) + '">' +
-      '<span class="edge"></span>' +
-      '<button class="body" data-act="open" data-id="' + esc(t.id) + '">' +
-        '<h3>' + esc(t.title || 'Untitled') + '</h3>' +
-        (sentence ? '<p class="signal" data-risk="' + d.risk + '">' + esc(sentence) + '</p>' : '') +
-        gate +
-        (bits.length ? '<p class="meta">' + bits.join('') + '</p>' : '') +
-      '</button>' +
-      '<button class="tick' + (d.status === 'done' ? ' on' : '') + '" data-act="toggle" ' +
-        'data-id="' + esc(t.id) + '" title="Mark done">' +
-        (d.status === 'done' ? '&#10003;' : '&#9711;') +
-      '</button>' +
-      (opts.drag
-        ? '<button class="grip" data-grip="' + esc(t.id) + '" ' +
-            'aria-label="Move ' + esc(t.title || 'task') + '">&#8942;&#8942;</button>'
-        : '') +
-    '</article>';
-}
-
-/* The old render() rebuilt the list, the tabs and the open sheet on every
-   change, including every keystroke. That is what made typing feel like the
-   app was reloading. These two do their own piece and nothing else. */
+var showSetup = false;
 
 function render() {
-  if (dragging) return;      // never rebuild the DOM out from under a finger
-  safely('renderList', renderList);
-  safely('renderSheet', renderSheet);
-}
+  if (showSetup) { document.getElementById('screen').innerHTML = setupScreen(); return; }
+  if (!getCfg()) { document.getElementById('screen').innerHTML = gateScreen(); return; }
 
-function renderList() {
-  if (dragging) return;
+  var html = '';
 
-  // Nothing behind an open sheet is visible, so do not pay to draw it.
-  if (openScreen || openTask) { listStale = true; return; }
-  listStale = false;
+  if (lastError) html += '<div class="warn">' + esc(lastError) + '</div>';
+  if (!persists) {
+    html += '<div class="warn">This browser will not let the app remember your ' +
+      'settings, so you may have to enter them again.</div>';
+  }
 
-  var ctx = buildContext();
-  var all = ctx.tasks.map(function (t) { return decorate(t, ctx); });
+  html += '<div class="capture">' +
+      '<label class="shoot">' +
+        '<span class="glyph">&#9673;</span><span>Snap something</span>' +
+        '<input type="file" accept="image/*" capture="environment" data-shot hidden>' +
+      '</label>' +
+      '<label class="shoot second" style="flex:0 0 96px">' +
+        '<span class="glyph">&#8862;</span><span>Pick a file</span>' +
+        '<input type="file" data-shot hidden>' +
+      '</label>' +
+    '</div>' +
+    '<div class="typebox">' +
+      '<input type="text" id="noteBox" placeholder="or just type it" ' +
+        (busy ? 'disabled' : '') + '>' +
+      '<button class="btn" data-act="note"' + (busy ? ' disabled' : '') + '>Send</button>' +
+    '</div>';
 
-  var open = all.filter(function (d) { return d.status !== 'done'; });
-  var waiting = all.filter(function (d) { return d.status === 'waiting'; });
-  var done = all.filter(function (d) { return d.status === 'done'; });
+  if (working) html += '<div class="working">' + esc(working) + '</div>';
 
-  renderTabs(open, waiting, done);
+  asking.forEach(function (a) { html += askingCard(a); });
+  ready.forEach(function (r) { html += readyCard(r); });
 
-  var html = banners();
+  if (!working && !asking.length && !ready.length) {
+    html += '<p class="empty"><strong>Nothing waiting.</strong><br>' +
+      'Photograph anything that lands on you and it gets dealt with. ' +
+      'Letters, bills, cheques, notes to yourself.</p>';
+  }
 
-  if (tab === 'all') html += viewAll(open, ctx);
-  else if (tab === 'waiting') html += viewWaiting(waiting, ctx);
-  else html += viewDone(done, ctx);
+  html += taskList();
 
   document.getElementById('screen').innerHTML = html;
 }
 
-function banners() {
-  var html = '';
-  var box = getOutbox();
-  if (box.length) {
-    html += '<div class="warn">' + plural(box.length, 'change') + ' not yet saved to your sheet.' +
-      (lastNetError ? ' <code>' + esc(lastNetError) + '</code>' : ' Syncing…') + '</div>';
-  } else if (lastNetError) {
-    if (location.protocol === 'file:') {
-      html += '<div class="warn">This page was opened straight from a file, and ' +
-        'Google will not accept requests from a file. Put the app online — even a ' +
-        'free static host works — and it will connect. ' +
-        '<code>' + esc(lastNetError) + '</code></div>';
-    } else {
-      html += '<div class="warn">Could not reach the server. <code>' +
-        esc(lastNetError) + '</code></div>';
-    }
-  }
-  if (!persists) {
-    html += '<div class="warn">This browser will not let the page store data, so your ' +
-      'tasks are only held in memory until you reload. Everything still saves to your sheet.</div>';
-  }
-  return html;
+function askingCard(a) {
+  var mine = answers[a.id] || [];
+
+  return '<div class="item asking">' +
+    '<h2>' + esc(a.summary) + '</h2>' +
+    (a.reading ? '<p class="read">' + esc(a.reading) + '</p>' : '') +
+    (a.questions || []).map(function (q, i) {
+      return '<div class="q">' +
+        '<p>' + esc(q.q) + '</p>' +
+        '<div class="opts">' +
+          (q.options || []).map(function (o) {
+            return '<button class="opt' + (mine[i] === o ? ' on' : '') + '" ' +
+              'data-act="opt" data-id="' + esc(a.id) + '" data-i="' + i + '" ' +
+              'data-v="' + esc(o) + '">' + esc(o) + '</button>';
+          }).join('') +
+        '</div>' +
+        '<input type="text" data-free data-id="' + esc(a.id) + '" data-i="' + i + '" ' +
+          'placeholder="or say it your own way" value="' +
+          esc((q.options || []).indexOf(mine[i]) === -1 ? (mine[i] || '') : '') + '">' +
+      '</div>';
+    }).join('') +
+    '<button class="btn primary wide" data-act="submit" data-id="' + esc(a.id) + '"' +
+      (busy ? ' disabled' : '') + '>Done</button>' +
+  '</div>';
 }
 
-function renderTabs(open, waiting, done) {
-  var counts = { all: open.length, waiting: waiting.length, done: done.length };
-
-  document.getElementById('tabs').innerHTML = TABS.map(function (t) {
-    return '<button data-act="tab" data-tab="' + t.id + '"' +
-      (tab === t.id ? ' aria-current="page"' : '') + '>' +
-      '<span class="count">' + counts[t.id] + '</span>' +
-      '<span>' + t.label + '</span></button>';
-  }).join('');
+function readyCard(r) {
+  return '<div class="item ready">' +
+    '<h2>' + esc(r.summary) + '</h2>' +
+    ((r.did || []).length
+      ? '<ul class="did">' + r.did.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul>'
+      : '') +
+    ((r.assumed || []).length
+      ? '<p class="guess">Assuming: ' + esc(r.assumed.join('; ')) + '</p>'
+      : '') +
+    (r.drafts || []).map(function (d, i) {
+      return '<div class="draft">' +
+        '<div class="to">' + esc(d.channel === 'email' ? 'Email' : 'Text') +
+          (d.to ? ' to ' + esc(d.to) : '') +
+          (d.subject ? ' — ' + esc(d.subject) : '') + '</div>' +
+        '<div class="body" id="d-' + esc(r.id) + '-' + i + '">' + esc(d.body) + '</div>' +
+        '<button class="btn small" data-act="copy" data-target="d-' + esc(r.id) + '-' + i + '">' +
+          'Copy</button>' +
+      '</div>';
+    }).join('') +
+    '<button class="btn wide" data-act="dismiss" data-id="' + esc(r.id) + '" ' +
+      'style="margin-top:4px">Done with this</button>' +
+  '</div>';
 }
 
-function viewAll(open, ctx) {
-  if (!open.length) {
-    if (!ctx.tasks.length) {
-      return '<p class="empty"><strong>Nothing here yet.</strong><br>' +
-        'Tap + to add the first task. A name is enough; a deadline and a rough ' +
-        'time make the list sort itself.</p>';
-    }
-    return '<p class="lede quiet">Everything is done.</p>';
-  }
+function taskList() {
+  if (!tasks.length) return '';
 
-  var rows = orderList(open);
-
-  return '<div id="tasklist">' +
-      rows.map(function (d) { return card(d, { drag: true }); }).join('') +
-    '</div>';
-}
-
-function viewWaiting(waiting, ctx) {
-  var rows = [];
-  waiting.forEach(function (d) {
-    d.needs.forEach(function (n) { rows.push({ d: d, n: n }); });
-  });
-  rows.sort(function (a, b) {
-    return String(a.n.created_at).localeCompare(String(b.n.created_at));
+  var sorted = tasks.slice().sort(function (a, b) {
+    var ad = String(a.deadline || ''), bd = String(b.deadline || '');
+    if (ad !== bd) { if (!ad) return 1; if (!bd) return -1; return ad.localeCompare(bd); }
+    return String(a.created_at).localeCompare(String(b.created_at));
   });
 
-  if (!rows.length) {
-    return '<p class="empty"><strong>Not waiting on anything.</strong><br>' +
-      'When a task needs a part, a price or an answer from someone, add it under ' +
-      '“Still needed” so it shows up here.</p>';
-  }
-
-  return '<p class="lede quiet">' + plural(rows.length, 'thing') + ' to chase.</p>' +
-    '<ul class="plain">' + rows.map(function (r) {
-      var age = ageInDays(r.n.created_at);
-      return '<li>' +
-        '<button class="check" data-act="need-done" data-id="' + esc(r.n.id) + '" ' +
-          'title="Got it">&#9711;</button>' +
-        '<span class="grow">' + esc(r.n.label) +
-          '<br><button class="group link" data-act="open" data-id="' + esc(r.d.task.id) + '" ' +
-          'style="font-weight:400;font-size:13px;color:var(--muted);margin:2px 0 0">for ' +
-          esc(r.d.task.title) + '</button>' +
-        '</span>' +
-        '<span class="age">' + (age === 0 ? 'today' : plural(age, 'day')) + '</span>' +
-      '</li>';
-    }).join('') + '</ul>';
+  return '<div class="tasks"><h3>Waiting on you</h3>' +
+    sorted.map(function (t) {
+      var late = t.deadline && dayGap(today(), t.deadline) < 0;
+      return '<div class="task' + (late ? ' late' : '') + '">' +
+        '<button class="tick" data-act="done" data-id="' + esc(t.id) + '">&#9711;</button>' +
+        '<span class="grow">' + esc(t.title) + '</span>' +
+        (t.deadline ? '<span class="when">' + esc(niceDate(t.deadline)) + '</span>' : '') +
+      '</div>';
+    }).join('') +
+  '</div>';
 }
 
-function viewDone(done, ctx) {
-  var recent = done.filter(function (d) { return ageInDays(d.task.completed_at) <= 30; });
-  recent.sort(function (a, b) {
-    return String(b.task.completed_at).localeCompare(String(a.task.completed_at));
-  });
-
-  if (!recent.length) {
-    return '<p class="empty"><strong>Nothing finished in the last month.</strong><br>' +
-      'Completed tasks land here with your estimate next to the time it really took.</p>';
-  }
-
-  return '<p class="lede quiet">' + plural(recent.length, 'thing') + ' done this month.</p>' +
-    recent.map(function (d) { return card(d, {}); }).join('');
+function gateScreen() {
+  return '<p class="empty"><strong>Connect this to your sheet.</strong></p>' +
+    '<label class="field"><span>Address</span>' +
+      '<input type="url" id="gUrl" placeholder="https://..."></label>' +
+    '<label class="field"><span>Token</span>' +
+      '<input type="password" id="gToken"></label>' +
+    '<button class="btn primary wide" data-act="connect">Connect</button>';
 }
 
-/* ---------------- sheets ---------------- */
-
-var sheetDirty = false;
-
-function isEditing() {
-  var a = document.activeElement;
-  if (!a) return false;
-  var tag = a.tagName;
-  if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return false;
-  var sheet = document.querySelector('.sheet');
-  return !!(sheet && sheet.contains(a));
-}
-
-function renderSheet() {
-  if (dragging) return;
-
-  // A background sync used to redraw this screen while you were still
-  // typing, replacing the box under your fingers and losing the sentence.
-  // Redraws wait until you tap away.
-  if (isEditing()) { sheetDirty = true; return; }
-  sheetDirty = false;
-
-  var existing = document.querySelector('.sheet');
-  var wanted = openScreen || (openTask ? 'task' : null);
-
-  if (!wanted) {
-    if (existing) existing.remove();
-    if (listStale) renderList();
-    return;
-  }
-
-  var ctx = buildContext();
-  var html = '';
-  if (openScreen === 'compose') html = sheetCompose();
-  else if (openScreen === 'settings') html = sheetSettings(ctx);
-  else html = sheetTask(ctx);
-
-  // sheetTask returns nothing if the task has gone. Without this the sheet
-  // stays up as a blank white panel covering the app, which looks exactly
-  // like a crash.
-  if (!html) {
-    openTask = null;
-    openScreen = null;
-    if (existing) existing.remove();
-    renderList();
-    return;
-  }
-
-  if (existing) {
-    // Reuse the element. Removing and re-adding it replays the slide-in
-    // animation and throws away the scroll position, which is most of what
-    // made saving a note feel like the screen had reloaded.
-    var top = existing.scrollTop;
-    var same = existing.getAttribute('data-kind') === wanted;
-    existing.setAttribute('data-kind', wanted);
-    existing.innerHTML = html;
-    existing.scrollTop = same ? top : 0;
-    if (!same) {
-      var f2 = existing.querySelector('[data-autofocus]');
-      if (f2) f2.focus();
-    }
-    return;
-  }
-
-  var el = document.createElement('div');
-  el.className = 'sheet';
-  el.setAttribute('data-kind', wanted);
-  el.innerHTML = html;
-  document.body.appendChild(el);
-
-  var focus = el.querySelector('[data-autofocus]');
-  if (focus) focus.focus();
-}
-
-function sheetCompose() {
-  return '' +
-    '<header><h2>New task</h2>' +
-      '<button class="btn" data-act="close">Cancel</button>' +
-      '<button class="btn primary" data-act="quick-save"' + (uploading ? ' disabled' : '') + '>' +
-        (uploading ? 'Wait\u2026' : 'Save') + '</button></header>' +
-    '<label class="field"><span>What needs doing?</span>' +
-      '<input type="text" id="cTitle" data-autofocus placeholder="Sand the door">' +
-    '</label>' +
-    '<div class="row">' +
-      '<label class="field"><span>Deadline</span>' +
-        '<input type="date" id="cDeadline"></label>' +
-      '<label class="field"><span>How long will it take?</span>' +
-        '<input type="text" id="cEstimate" placeholder="2h"></label>' +
-    '</div>' +
-    '<label class="field"><span>Notes</span>' +
-      '<textarea id="cNotes" class="bignote" placeholder="Anything worth knowing: ' +
-        'what is involved, what has to happen first, where you left off."></textarea></label>' +
-    pendingSection() +
-    '<p class="empty" style="padding:0">Only the title is required.</p>';
-}
-
-function sheetTask(ctx) {
-  var t = ctx.byId[String(openTask)];
-  if (!t) { openTask = null; return ''; }
-
-  var d = decorate(t, ctx);
-  var needs = (ctx.needsBy[String(t.id)] || []);
-
-  return '' +
-    '<header><h2>' + (d.status === 'done' ? 'Finished' : 'Task') + '</h2>' +
-      '<button class="btn" data-act="close">Close</button></header>' +
-
-    '<label class="field"><span>Title</span>' +
-      '<input type="text" id="fTitle" data-save="title" value="' + esc(t.title) + '"></label>' +
-
-    '<div class="row">' +
-      '<label class="field"><span>Deadline</span>' +
-        '<input type="date" id="fDeadline" data-save="deadline" value="' +
-          esc(t.deadline || '') + '"></label>' +
-      '<label class="field"><span>How long will it take?</span>' +
-        '<input type="text" id="fEstimate" data-save="estimate_min" placeholder="2h" value="' +
-          esc(t.estimate_min ? niceMins(t.estimate_min) : '') + '"></label>' +
-    '</div>' +
-
-    '<label class="field"><span>Notes</span>' +
-      '<textarea id="fNotes" class="bignote" data-save="notes" ' +
-        'placeholder="Anything worth knowing: what is involved, what has to happen ' +
-        'first, where you left off.">' + esc(t.notes || '') + '</textarea></label>' +
-
-    attachmentSection(t, ctx) +
-
-    '<section class="block"><h3>Still needed</h3>' +
-      (needs.length
-        ? '<ul class="plain">' + needs.map(function (n) {
-            var got = n.resolved === true || n.resolved === 'TRUE';
-            return '<li' + (got ? ' class="gone"' : '') + '>' +
-              '<button class="check" data-act="need-toggle" data-id="' + esc(n.id) + '">' +
-                (got ? '&#10003;' : '&#9711;') + '</button>' +
-              '<span class="grow">' + esc(n.label) + '</span>' +
-              '<button class="chip" data-act="need-del" data-id="' + esc(n.id) + '">Remove</button>' +
-            '</li>';
-          }).join('') + '</ul>'
-        : '<p class="empty" style="padding:0 0 8px">Nothing outstanding.</p>') +
-      '<div class="row" style="margin-top:10px">' +
-        '<input type="text" id="fNeed" placeholder="a part, a price, an answer">' +
-        '<button class="btn" data-act="add-need" style="flex:0 0 auto">Add</button>' +
-      '</div>' +
-    '</section>' +
-
-    '<section class="block">' +
-      '<button class="btn primary wide" data-act="toggle" data-id="' + esc(t.id) + '">' +
-        (d.status === 'done' ? 'Reopen' : 'Mark done') + '</button>' +
-      '<button class="btn danger wide" data-act="delete-task" style="margin-top:10px">Delete task</button>' +
-    '</section>';
-}
-
-function sheetSettings(ctx) {
-  var cfg = getCfg() || {};
+function setupScreen() {
   var cfg = getCfg() || {};
   var errors = getErrors();
-  var box = getOutbox();
 
-  return '' +
-    '<header><h2>Setup</h2><button class="btn" data-act="close">Close</button></header>' +
-
-    '<section class="block"><h3>Connection</h3>' +
-      '<label class="field"><span>Web app URL</span>' +
-        '<input type="url" id="sUrl" value="' + esc(cfg.url || '') + '"></label>' +
-      '<label class="field"><span>Token</span>' +
-        '<input type="password" id="sToken" value="' + esc(cfg.token || '') + '"></label>' +
-      '<button class="btn wide" data-act="save-conn">Save and test</button>' +
-      '<p class="empty" style="padding:10px 0 0">Stored on this device only.' +
-        (box.length ? ' ' + plural(box.length, 'change') + ' still waiting to send.' : '') + '</p>' +
-    '</section>' +
-
-    '<section class="block"><h3>This app</h3>' +
-      '<p class="empty" style="padding:0">Version ' + APP_VERSION +
-        (('serviceWorker' in navigator) && navigator.serviceWorker.controller
-          ? '. Works offline.'
-          : '. Offline support not active yet — reload once to switch it on.') +
-      '</p>' +
-    '</section>' +
-
-    (errors.length ? '<section class="block"><h3>Problems</h3>' +
-      '<ul class="plain">' + errors.map(function (e) {
-        return '<li><span class="grow">' + esc(e.text) + '</span>' +
-          '<span class="age">' + esc(niceDate(ymd(new Date(e.at)))) + '</span></li>';
-      }).join('') + '</ul>' +
-      '<button class="btn wide" data-act="clear-errors" style="margin-top:10px">Clear</button>' +
-    '</section>' : '');
-}
-
-/* ================================================================
-   first run
-   ================================================================ */
-
-function renderSetupGate() {
-  document.getElementById('screen').innerHTML = '' +
-    '<p class="lede">Connect this app to your sheet.</p>' +
-    '<label class="field"><span>Web app URL (ends in /exec)</span>' +
-      '<input type="url" id="gUrl" data-autofocus placeholder="https://script.google.com/macros/s/…/exec"></label>' +
+  return '<div class="sheet">' +
+    '<h2>Setup</h2>' +
+    '<label class="field"><span>Address</span>' +
+      '<input type="url" id="sUrl" value="' + esc(cfg.url || '') + '"></label>' +
     '<label class="field"><span>Token</span>' +
-      '<input type="password" id="gToken" placeholder="the TOKEN you set in Script Properties"></label>' +
-    '<button class="btn primary wide" data-act="gate-connect">Connect</button>' +
-    '<p class="empty">Both are stored on this device and sent only to your own ' +
-      'Apps Script deployment.</p>';
-  document.getElementById('tabs').innerHTML = '';
-  var f = document.getElementById('gUrl');
-  if (f) f.focus();
+      '<input type="password" id="sToken" value="' + esc(cfg.token || '') + '"></label>' +
+    '<button class="btn wide" data-act="save-conn">Save</button>' +
+    '<p class="empty" style="padding:14px 0">Version ' + APP_VERSION + '. ' +
+      'Stored on this device only.</p>' +
+    (errors.length
+      ? '<h3 style="font-size:13px;color:var(--muted)">Problems</h3>' +
+        errors.slice(0, 8).map(function (e) {
+          return '<p class="guess">' + esc(e.text) + '</p>';
+        }).join('') +
+        '<button class="btn wide" data-act="clear-errors">Clear</button>'
+      : '') +
+    '<button class="btn wide" data-act="close-setup" style="margin-top:18px">Close</button>' +
+  '</div>';
 }
 
 /* ================================================================
@@ -1863,341 +743,139 @@ function val(id) {
   return el ? el.value.trim() : '';
 }
 
-function currentTask() {
-  var ctx = buildContext();
-  return ctx.byId[String(openTask)];
-}
-
 document.addEventListener('click', function (ev) {
   var btn = ev.target.closest('[data-act]');
   if (!btn) return;
   var act = btn.getAttribute('data-act');
   var id = btn.getAttribute('data-id');
 
-  /* ---- navigation ---- */
-  if (act === 'tab') { tab = btn.getAttribute('data-tab'); render(); return; }
-  if (act === 'open') { openTask = id; openScreen = null; render(); return; }
-  if (act === 'close') {
-    // Decoded photos are large. Holding them for tasks you are no longer
-    // looking at is what gets a web app killed on a phone.
-    previewCache = {};
-    if (openScreen === 'compose' && pendingFiles.length &&
-        !confirm(plural(pendingFiles.length, 'photo') + ' will be discarded. Cancel anyway?')) {
-      return;
-    }
-    pendingFiles = [];
-    openScreen = null;
-    openTask = null;
+  if (act === 'connect') {
+    var u = val('gUrl'), t = val('gToken');
+    if (!u || !t) { toast('Both are needed', true); return; }
+    setCfg({ url: u, token: t });
+    refresh();
+    return;
+  }
+
+  if (act === 'save-conn') {
+    setCfg({ url: val('sUrl'), token: val('sToken') });
+    showSetup = false;
+    refresh();
+    return;
+  }
+
+  if (act === 'close-setup') { showSetup = false; render(); return; }
+  if (act === 'clear-errors') { jset('ready.errors', []); render(); return; }
+
+  if (act === 'note') {
+    var text = val('noteBox');
+    if (!text) { toast('Type something first', true); return; }
+    captureNote(text);
+    return;
+  }
+
+  if (act === 'opt') {
+    var i = parseInt(btn.getAttribute('data-i'), 10);
+    var v = btn.getAttribute('data-v');
+    answers[id] = answers[id] || [];
+    answers[id][i] = (answers[id][i] === v) ? '' : v;   // tap again to unpick
     render();
     return;
   }
-  /* ---- completion ---- */
-  /* ---- first run ---- */
 
-  if (act === 'gate-connect') {
-    var u = val('gUrl'), tk = val('gToken');
-    if (!u || !tk) { toast('Both fields are needed', true); return; }
-    setCfg({ url: u, token: tk });
-    boot(true);
-    return;
-  }
+  if (act === 'submit') { submitAnswers(id); return; }
+  if (act === 'dismiss') { dismiss(id); return; }
+  if (act === 'done') { completeTask(id); return; }
 
-  /* ---- creating a task ---- */
+  if (act === 'copy') {
+    var el = document.getElementById(btn.getAttribute('data-target'));
+    if (!el) return;
+    var text2 = el.textContent;
 
-  if (act === 'quick-save') {
-    var title = val('cTitle');
-    if (!title) { toast('Give it a name first', true); return; }
-    if (uploading) return;
-
-    var notesEl = document.getElementById('cNotes');
-    var newId = uuid();
-    var fields = {
-      id: newId,
-      title: title,
-      deadline: val('cDeadline'),
-      estimate_min: readMins(val('cEstimate')) || '',
-      notes: notesEl ? notesEl.value : ''
-    };
-
-    // No photos: the ordinary path, which works with no signal.
-    if (!pendingFiles.length) {
-      enqueue('upsertTask', fields);
-      openScreen = null;
-      toast('Saved');
-      render();
-      return;
+    function fallback() {
+      // Older iOS refuses the clipboard API outside a few contexts.
+      var ta = document.createElement('textarea');
+      ta.value = text2;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); toast('Copied'); }
+      catch (e) { toast('Could not copy — select the text instead', true); }
+      ta.remove();
     }
 
-    // With photos the task has to exist before anything can be attached to
-    // it, so both go up in one ordered request instead of the offline queue.
-    // The backend applies a batch in array order under a single lock, so the
-    // task is always there by the time the attachments are handled.
-    uploading = true;
-    renderSheet();
-
-    var muts = [{ mid: uuid(), op: 'upsertTask', data: fields }];
-    var mapped = pendingFiles.map(function (f) {
-      var attId = uuid();
-      muts.push({
-        mid: uuid(), op: 'addAttachment',
-        data: {
-          id: attId, task_id: newId, filename: f.prep.filename,
-          mime: f.prep.mime, role: 'reference', base64: f.prep.base64
-        }
-      });
-      return { id: attId, url: f.url };
-    });
-
-    postDirect({ mutations: muts })
-      .then(function (res) {
-        var bad = (res.applied || []).filter(function (a) { return a.status === 'error'; })[0];
-        if (bad) throw new Error(bad.error);
-        setServer(res.state);
-        // The images are already in memory; no need to fetch them back.
-        mapped.forEach(function (m) { previewCache[m.id] = m.url; });
-        pendingFiles = [];
-        openScreen = null;
-        toast('Saved');
-      })
-      .catch(function (err) {
-        toast(err.message || String(err), true);   // keep it all on screen to retry
-      })
-      .then(function () {
-        uploading = false;
-        render();
-      });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text2).then(function () { toast('Copied'); }, fallback);
+    } else { fallback(); }
     return;
   }
-
-  /* ---- completion ---- */
-
-  if (act === 'toggle') {
-    var ctx = buildContext();
-    var t = ctx.byId[String(id)];
-    if (!t) return;
-    if (isDone(t)) enqueue('reopenTask', { id: t.id });
-    else {
-      enqueue('completeTask', { id: t.id });
-      var pending = openNeeds(t, ctx).length;
-      if (pending) toast('Done, though ' + plural(pending, 'thing') + ' was still needed');
-      else toast('Done');
-    }
-    return;
-  }
-
-  /* ---- task edits ---- */
-  if (act === 'delete-task') {
-    var t4 = currentTask();
-    if (!t4) return;
-    var ctx2 = buildContext();
-    var dependents = ctx2.tasks.filter(function (o) {
-      return splitIds(o.blocked_by).indexOf(String(t4.id)) !== -1;
-    }).length;
-    var extra = [];
-    if (dependents) extra.push(plural(dependents, 'task') + ' will stop waiting on it');
-    if (!confirm('Delete “' + t4.title + '” and its notes and needs?' +
-      (extra.length ? '\n\n' + extra.join('\n') : ''))) return;
-    enqueue('deleteTask', { id: t4.id });
-    openTask = null;
-    toast('Deleted');
-    return;
-  }
-
-  /* ---- needs ---- */
-  if (act === 'add-need') {
-    var t8 = currentTask();
-    if (!t8) return;
-    var label = val('fNeed');
-    if (!label) { toast('What is it you need?', true); return; }
-    enqueue('upsertNeed', { id: uuid(), task_id: t8.id, label: label });
-    return;
-  }
-
-  if (act === 'need-toggle' || act === 'need-done') {
-    var st = viewState();
-    var need = null;
-    st.needs.forEach(function (n) { if (String(n.id) === String(id)) need = n; });
-    if (!need) return;
-    var got = need.resolved === true || need.resolved === 'TRUE';
-    enqueue('upsertNeed', { id: id, resolved: !got });
-    if (!got) toast('Got it');
-    return;
-  }
-
-  if (act === 'need-del') { enqueue('deleteNeed', { id: id }); return; }
-
-  if (act === 'file-load') { loadPreview(id); return; }
-
-  if (act === 'pend-del') {
-    var idx = parseInt(btn.getAttribute('data-idx'), 10);
-    if (idx >= 0) pendingFiles.splice(idx, 1);
-    renderSheet();
-    return;
-  }
-
-  if (act === 'file-del') {
-    if (!confirm('Remove this file? It goes to the trash in your Drive.')) return;
-    delete previewCache[id];
-    enqueue('deleteAttachment', { id: id });
-    toast('Removed');
-    return;
-  }
-
-  /* ---- files ---- */
-  /* ---- settings ---- */
-  if (act === 'save-conn') {
-    setCfg({ url: val('sUrl'), token: val('sToken') });
-    sync(true);
-    return;
-  }
-
-  if (act === 'clear-errors') { jset(K.errors, []); render(); return; }
-});
-
-document.getElementById('fab').addEventListener('click', function () {
-  openScreen = 'compose';
-  openTask = null;
-  pendingFiles = [];
-  render();
-});
-
-document.getElementById('syncBtn').addEventListener('click', function () { sync(true); });
-
-document.getElementById('setBtn').addEventListener('click', function () {
-  openScreen = 'settings';
-  openTask = null;
-  render();
-});
-
-document.addEventListener('input', function (ev) {
 });
 
 document.addEventListener('change', function (ev) {
-  if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-upload')) {
+  if (ev.target && ev.target.hasAttribute && ev.target.hasAttribute('data-shot')) {
     var file = ev.target.files && ev.target.files[0];
-    ev.target.value = '';   // so picking the same file twice still fires
-    if (file) {
-      if (openScreen === 'compose') holdFile(file);
-      else uploadFile(file);
-    }
-    return;
+    ev.target.value = '';
+    if (file) capturePhoto(file);
   }
-  // Task fields save themselves when you tap away. `change` fires on blur
-  // for text and number inputs, and immediately for the date picker.
-  var field = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-save');
-  if (field) {
-    var t = currentTask();
-    if (!t) return;
-    var raw = ev.target.value.trim();
-    var patch = { id: t.id };
-    if (field === 'notes') raw = ev.target.value;
+});
 
-    if (field === 'title') {
-      if (!raw) { ev.target.value = t.title; return; }   // refuse to blank it
-      if (raw === t.title) return;
-      patch.title = raw;
-    } else if (field === 'estimate_min') {
-      var mins = raw === '' ? '' : (readMins(raw) || '');
-      if (String(mins) === String(t.estimate_min || '')) return;
-      patch.estimate_min = mins;
-    } else if (field === 'deadline') {
-      if (raw === String(t.deadline || '')) return;
-      patch.deadline = raw;
-    } else if (field === 'notes') {
-      // Deliberately not trimmed against the raw value: blank clears it.
-      if (ev.target.value === String(t.notes || '')) return;
-      patch.notes = ev.target.value;
-    } else {
-      return;
-    }
-
-    enqueue('upsertTask', patch);
+// Typed answers are kept as you go, but never trigger a redraw: rebuilding
+// the card under your fingers is what made the old app feel broken.
+document.addEventListener('input', function (ev) {
+  if (ev.target && ev.target.hasAttribute && ev.target.hasAttribute('data-free')) {
+    var id = ev.target.getAttribute('data-id');
+    var i = parseInt(ev.target.getAttribute('data-i'), 10);
+    answers[id] = answers[id] || [];
+    answers[id][i] = ev.target.value;
   }
 });
 
 document.addEventListener('keydown', function (ev) {
-  if (ev.key === 'Enter' && ev.target.id === 'cTitle') {
+  if (ev.key === 'Enter' && ev.target.id === 'noteBox') {
     ev.preventDefault();
-    var b = document.querySelector('[data-act="quick-save"]');
+    var b = document.querySelector('[data-act="note"]');
     if (b) b.click();
-  }
-  if (ev.key === 'Escape' && (openScreen || openTask)) {
-    if (openScreen === 'compose' && pendingFiles.length) return;
-    openScreen = null;
-    openTask = null;
-    render();
   }
 });
 
-window.addEventListener('online', function () { sync(); });
+document.getElementById('syncBtn').addEventListener('click', function () { refresh(); });
+document.getElementById('setBtn').addEventListener('click', function () {
+  showSetup = !showSetup;
+  render();
+});
+
+window.addEventListener('error', function (ev) {
+  pushError('error: ' + String((ev.error && ev.error.message) || ev.message));
+});
+window.addEventListener('unhandledrejection', function (ev) {
+  pushError('promise: ' + String((ev.reason && ev.reason.message) || ev.reason));
+});
 
 /* ================================================================
-   boot
-   ================================================================ */
-
-/* ================================================================
-   installation and offline
+   start
    ================================================================ */
 
 function registerWorker() {
   if (!('serviceWorker' in navigator)) return;
-  if (location.protocol === 'file:') return;   // nothing to register from disk
-
-  navigator.serviceWorker.register('sw.js').catch(function (err) {
-    console.warn('offline support unavailable', err);
-  });
-
-  // A new worker taking over means new code is on disk but this page is
-  // still running the old copy. Say so rather than silently reloading and
-  // losing whatever is half-typed.
-  var seen = false;
-  navigator.serviceWorker.addEventListener('controllerchange', function () {
-    if (seen) return;
-    seen = true;
-    toast('Updated. Reload to use the new version.');
-  });
+  if (location.protocol === 'file:') return;
+  navigator.serviceWorker.register('sw.js').catch(function () {});
 }
 
-/* ================================================================
-   failure reporting
-
-   An uncaught error used to leave the screen half-drawn and unresponsive
-   with nothing to show for it. Now it says so, and keeps the details in
-   Setup so they can be read back later.
-   ================================================================ */
-
-function recordFailure(what, err) {
-  var detail = '';
-  try {
-    detail = (err && (err.stack || err.message)) ? String(err.stack || err.message) : String(err);
-  } catch (e) { detail = 'unreadable error'; }
-
-  pushError(what + ': ' + detail.slice(0, 400));
-  try { toast('Something went wrong. Details are in Setup.', true); } catch (e) {}
-}
-
-window.addEventListener('error', function (ev) {
-  recordFailure('error', ev.error || ev.message);
-});
-
-window.addEventListener('unhandledrejection', function (ev) {
-  recordFailure('promise', ev.reason);
-});
-
-// Wraps a redraw so a failure in one screen cannot leave the app frozen.
-function safely(what, fn) {
-  try { fn(); }
-  catch (err) { recordFailure(what, err); }
-}
-
-function boot(loud) {
-  if (!getCfg()) { renderSetupGate(); return; }
+(function boot() {
+  var cached = jget('ready.cache', null);
+  if (cached) {
+    asking = cached.asking || [];
+    ready = cached.ready || [];
+    tasks = cached.tasks || [];
+    asking.forEach(function (a) {
+      if (!answers[a.id]) answers[a.id] = (a.questions || []).map(function () { return ''; });
+    });
+  }
   render();
-  sync(loud);
-}
-
-boot(false);
-registerWorker();
+  refresh(true);
+  registerWorker();
+})();
 </script>
 </body>
 </html>
