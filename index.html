@@ -716,6 +716,17 @@ function readyCard(r) {
     ((r.assumed || []).length
       ? '<p class="guess">Assuming: ' + esc(r.assumed.join('; ')) + '</p>'
       : '') +
+    (r.actions || []).filter(function (a) { return !a.done; }).map(function (a) {
+      return '<div class="draft">' +
+        '<div class="to">' + esc(a.kind === 'calendar' ? 'Calendar' : 'Airtable') + '</div>' +
+        '<div class="body">' + esc(a.summary) + '</div>' +
+        '<button class="btn small primary" data-act="do" data-id="' + esc(r.id) + '" ' +
+          'data-i="' + a.index + '">Yes, do it</button>' +
+      '</div>';
+    }).join('') +
+    (r.actions || []).filter(function (a) { return a.done; }).map(function (a) {
+      return '<p class="guess">Done: ' + esc(a.summary) + '</p>';
+    }).join('') +
     (r.drafts || []).map(function (d, i) {
       return '<div class="draft">' +
         '<div class="to">' + esc(d.channel === 'email' ? 'Email' : 'Text') +
@@ -845,6 +856,22 @@ document.addEventListener('click', function (ev) {
   if (act === 'held-drop') { held = null; render(); return; }
 
   if (act === 'submit') { submitAnswers(id); return; }
+  if (act === 'do') {
+    var i2 = parseInt(btn.getAttribute('data-i'), 10);
+    btn.disabled = true;
+    btn.textContent = 'Doing it...';
+    post({ do_action: { id: id, index: i2 } })
+      .then(function (res) {
+        toast(res.message || 'Done');
+        return refresh(true);
+      })
+      .catch(function (err) {
+        toast(err.message || String(err), true);
+        render();
+      });
+    return;
+  }
+
   if (act === 'dismiss') { dismiss(id); return; }
   if (act === 'done') { completeTask(id); return; }
 
